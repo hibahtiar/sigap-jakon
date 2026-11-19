@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#C2410C">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SIGAP Jakon">
+<script src="config.js"></script>
+<title>SIGAP Jakon</title>
+<style>
+:root{--hijau:#C2410C;--hijau2:#EA580C;--biru:#1D4ED8;--merah:#B91C1C;--oranye:#C2410C;--kuning:#B45309;--abu:#57534E;--garis:#E7E5E4;--latar:#FAFAF9;--kartu:#fff;--teks:#1C1917;--r:12px}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{font:15px/1.45 "Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--latar);color:var(--teks)}
+button,input,select,textarea{font:inherit}
+a{color:var(--biru)}
+.hidden{display:none!important}
+/* header */
+.top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--garis);display:flex;align-items:center;gap:12px;padding:8px 16px}
+.mono{width:36px;height:36px;border-radius:10px;overflow:hidden;flex:none;display:block}.mono svg{width:100%;height:100%;display:block}.mono.besar{width:64px;height:64px;border-radius:16px;margin:0 auto 6px}.segar{font-size:11.5px;color:var(--abu);padding:6px 16px;background:#FFF7ED;border-bottom:1px solid var(--garis)}.top .judul{font-weight:700;color:var(--hijau);font-size:17px;line-height:1.1}.top .judul small{display:block;font-weight:500;color:var(--abu);font-size:11.5px}
+.top .sp{flex:1}.top .user{font-size:13px;color:var(--abu);text-align:right;line-height:1.2}.top .user b{color:var(--teks)}
+.nav{display:flex;gap:4px;padding:0 12px;background:#fff;border-bottom:1px solid var(--garis);overflow-x:auto;position:sticky;top:47px;z-index:19}
+.nav button{border:0;background:none;padding:11px 12px;color:var(--abu);font-weight:600;border-bottom:3px solid transparent;white-space:nowrap;cursor:pointer}
+.nav button.on{color:var(--hijau);border-color:var(--hijau)}
+.nav .badge{background:var(--merah);color:#fff;border-radius:10px;font-size:11px;padding:0 6px;margin-left:4px}
+main{max-width:1180px;margin:0 auto;padding:16px 14px 90px}
+@media(max-width:720px){.nav{position:fixed;bottom:0;top:auto;left:0;right:0;border-top:1px solid var(--garis);border-bottom:0;justify-content:space-around;padding:0}.nav button{flex:1;padding:10px 4px;font-size:12px;border-bottom:0;border-top:3px solid transparent}.nav button.on{border-top-color:var(--hijau)}.top .judul small,.top .user{display:none}main{padding:12px 10px 90px}}
+/* blok */
+h2{font-size:19px;margin:4px 0 12px}h3{font-size:16px;margin:18px 0 8px}
+.kartu{background:var(--kartu);border:1px solid var(--garis);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.kpi{background:#fff;border:1px solid var(--garis);border-radius:var(--r);padding:12px 14px;cursor:default}
+.kpi .n{font-size:26px;font-weight:700;line-height:1.1}.kpi .l{color:var(--abu);font-size:13px}
+.kpi.klik{cursor:pointer}.kpi.klik:hover{border-color:var(--hijau2)}
+.kpi.merah .n{color:var(--merah)}.kpi.oranye .n{color:var(--oranye)}.kpi.hijau .n{color:var(--hijau)}.kpi.biru .n{color:var(--biru)}
+.baris{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sp{flex:1}
+.btn{border:1px solid var(--garis);background:#fff;border-radius:9px;padding:8px 14px;cursor:pointer;font-weight:600;color:var(--teks);text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--hijau2)}.btn.utama{background:var(--hijau);border-color:var(--hijau);color:#fff}.btn.utama:hover{background:#9A3412}
+.btn.wa{background:#15803D;border-color:#15803D;color:#fff}.btn.bahaya{color:var(--merah)}.btn.kecil{padding:5px 10px;font-size:13px}
+.btn[disabled]{opacity:.55;cursor:wait}
+input[type=text],input[type=password],input[type=number],input[type=date],input[type=month],input[type=tel],input[type=email],select,textarea{width:100%;border:1px solid #cfd5d2;border-radius:9px;padding:9px 11px;background:#fff}
+textarea{min-height:70px;resize:vertical}
+label.f{display:block;margin:10px 0 4px;font-weight:600;font-size:13.5px}
+label.f small{font-weight:400;color:var(--abu)}
+.dua{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}@media(max-width:600px){.dua{grid-template-columns:1fr}}
+.cari{max-width:320px}
+.chip{display:inline-block;border-radius:20px;padding:2px 10px;font-size:12.5px;font-weight:600;white-space:nowrap;background:#eef1ef;color:var(--abu)}
+.chip.aktif,.chip.selesai,.chip.ok{background:#DCFCE7;color:#166534}.chip.menunggak,.chip.ditolak,.chip.batal{background:#fce8e6;color:#c5221f}
+.chip.nonaktif{background:#eceff1;color:#455a64}.chip.belum,.chip.ditunda,.chip.perbaikan{background:#fef7e0;color:#b06000}
+.chip.berjalan,.chip.diajukan{background:#e8f0fe;color:#1967d2}.chip.checklist,.chip.diverifikasi{background:#e0f7f4;color:#00796b}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.filters button{border:1px solid var(--garis);background:#fff;border-radius:20px;padding:4px 11px;font-size:13px;cursor:pointer}
+.filters button.on{background:var(--hijau);border-color:var(--hijau);color:#fff}
+/* tabel */
+.tbl-wrap{overflow:auto;background:#fff;border:1px solid var(--garis);border-radius:var(--r)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{background:#f7f9f8;text-align:left;font-size:12.5px;color:var(--abu);font-weight:700;position:sticky;top:0}
+th,td{padding:8px 10px;border-bottom:1px solid var(--garis);vertical-align:top}
+tr.klik{cursor:pointer}tr.klik:hover td{background:#FFF7ED}
+td.num{text-align:right;white-space:nowrap}
+.kosong{padding:28px;text-align:center;color:var(--abu)}
+.muted{color:var(--abu);font-size:13px}
+/* kartu list (mobile friendly) */
+.item{background:#fff;border:1px solid var(--garis);border-radius:var(--r);padding:12px;margin-bottom:8px;cursor:pointer}
+.item:hover{border-color:var(--hijau2)}.item .t{font-weight:700}.item .s{color:var(--abu);font-size:13px}
+/* modal */
+.modal-bg{position:fixed;inset:0;background:rgba(20,30,25,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 10px;overflow:auto}
+.modal{background:#fff;border-radius:14px;max-width:720px;width:100%;padding:18px 18px 14px;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.modal h3{margin-top:0}.modal .aksi{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#202124;color:#fff;padding:10px 16px;border-radius:10px;z-index:80;max-width:92vw;font-size:14px;box-shadow:0 4px 18px rgba(0,0,0,.3)}
+.toast.err{background:var(--merah)}
+.info{background:#FFF7ED;border:1px solid #FFEDD5;border-radius:10px;padding:10px 12px;font-size:14px;margin:10px 0}
+.info.kuning{background:#FEF3C7;border-color:#FDE68A}
+.kode{font:700 26px/1.2 ui-monospace,Consolas,monospace;letter-spacing:2px;background:#f1f3f4;border-radius:10px;padding:10px 14px;display:inline-block;margin:6px 0}
+.bar{height:10px;background:#eef1ef;border-radius:6px;overflow:hidden}.bar>i{display:block;height:100%;background:var(--hijau2)}
+.step{display:flex;gap:10px;align-items:flex-start;margin:12px 0}.step .no{flex:0 0 28px;height:28px;border-radius:50%;background:var(--hijau);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700}
+.berkas{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--garis);flex-wrap:wrap}.berkas .nm{flex:1;min-width:160px}
+.ok-ic{color:#137333;font-weight:700}
+/* login */
+.login{max-width:400px;margin:7vh auto;padding:0 14px}.login .kartu{padding:22px}.disc{max-width:1180px;margin:0 auto;padding:4px 14px 96px;font-size:12px;color:var(--abu)}
+.steps{display:flex;gap:6px;margin:8px 0 4px}.steps div{flex:1;font-size:11.5px;font-weight:700;color:var(--abu)}.steps i{display:block;height:4px;border-radius:2px;background:var(--garis);margin-bottom:4px}.steps .on{color:var(--hijau)}.steps .on i,.steps .done i{background:var(--hijau)}
+.tiga{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 12px}@media(max-width:600px){.tiga{grid-template-columns:1fr}}
+.berkas.ganti{background:#FEF2F2;border-radius:8px;padding-left:8px}
+.btn.pilih{position:relative}
+.seg{display:flex;gap:6px}.seg button{border:1px solid #D6D3D1;background:#fff;border-radius:9px;padding:6px 10px;font-weight:600;font-size:13px;cursor:pointer;min-height:36px}.seg button.on.ok{background:#DCFCE7;border-color:#166534;color:#166534}.seg button.on.ganti{background:#FEE2E2;border-color:#991B1B;color:#991B1B}
+.kartu.inaproc{border-color:#FFEDD5;background:#FFF7ED}
+.login h1{font-size:22px;color:var(--hijau);margin:14px 0 2px}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid #fff;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+.loading{padding:40px;text-align:center;color:var(--abu)}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Memuat…</div></div>
+
+<script>
+/* ============================================================
+   SIGAP Jakon — tampilan
+   ============================================================ */
+var S = { token: null, me: null, d: null, tab: null, f: {} };
+var IKON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect fill="#B93C0D"/><circle cx="256" cy="256" r="216" fill="#CF4E17"/><g fill="#FFFFFF"><path d="M150 292 C150 210 196 156 256 156 C316 156 362 210 362 292 Z"/><rect x="116" y="284" width="280" height="40" rx="20"/></g><path d="M236 160 L236 286 L276 286 L276 160 C268 157 262 156 256 156 C250 156 243 157 236 160 Z" fill="#F1E3D9"/><path d="M188 226 C196 202 212 186 226 178" stroke="#F1E3D9" stroke-width="14" stroke-linecap="round" fill="none"/><circle cx="360" cy="352" r="70" fill="#B93C0D"/><circle cx="360" cy="352" r="56" fill="#F3B13B"/><path d="M332 353 L352 373 L390 334" stroke="#7C2D12" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+/* Alamat API Apps Script. Di GitHub Pages diisi lewat config.js (window.SIGAP_API). */
+var API_URL = window.SIGAP_API || '';
+var STATUS_CV = ['Terdaftar aktif', 'Menunggak', 'Nonaktif', 'Belum terdaftar / perlu cek'];
+
+// ---------- util ----------
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function $(sel, root) { return (root || document).querySelector(sel); }
+function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+function rp(n) { n = Number(n); return isNaN(n) || !n ? '-' : 'Rp ' + n.toLocaleString('id-ID', { maximumFractionDigits: 0 }); }
+function jt(n) { n = Number(n); if (!n) return '-'; return n >= 1e9 ? (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' M' : (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt'; }
+function bln(ym) { var b = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']; var m = String(ym || '').match(/^(\d{4})-(\d{2})/); return m ? b[+m[2] - 1] + ' ' + m[1] : (ym || ''); }
+function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function thisMonth() { return today().slice(0, 7); }
+function hp62(v) { var s = String(v || '').replace(/\D/g, ''); if (s[0] === '0') s = '62' + s.slice(1); if (s[0] === '8') s = '62' + s; return s; }
+function waLink(no, teks) { return 'https://api.whatsapp.com/send?phone=' + hp62(no) + '&text=' + encodeURIComponent(teks); }
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
+
+function chipCls(s) {
+  s = String(s || '').toLowerCase();
+  if (s.indexOf('menunggak') >= 0 || s.indexOf('ditolak') >= 0 || s.indexOf('dibatalkan') >= 0) return 'menunggak';
+  if (s.indexOf('nonaktif') >= 0) return 'nonaktif';
+  if (s.indexOf('belum') >= 0 || s.indexOf('ditunda') >= 0 || s.indexOf('perbaikan') >= 0 || s.indexOf('mirip') >= 0 || s.indexOf('tidak ada') >= 0 || s.indexOf('draf') >= 0) return 'belum';
+  if (s.indexOf('checklist') >= 0 || s.indexOf('diverifikasi') >= 0) return 'checklist';
+  if (s.indexOf('berjalan') >= 0 || s.indexOf('diajukan') >= 0) return 'berjalan';
+  if (s.indexOf('aktif') >= 0 || s.indexOf('selesai') >= 0 || s === 'cocok' || s === 'manual') return 'aktif';
+  return '';
+}
+function chip(s) { return s ? '<span class="chip ' + chipCls(s) + '">' + esc(s) + '</span>' : ''; }
+
+function toast(msg, err) {
+  var t = document.createElement('div'); t.className = 'toast' + (err ? ' err' : ''); t.textContent = msg;
+  document.body.appendChild(t); setTimeout(function () { t.remove(); }, err ? 6000 : 3200);
+}
+
+function call(aksi, arg) {
+  return new Promise(function (ok, gagal) {
+    var done = function (r) {
+      if (r && r.ok) return ok(r.data);
+      var e = (r && r.error) || 'Gagal';
+      if (e.indexOf('SESI_HABIS') >= 0) { keluar(true); return gagal(new Error('Sesi berakhir, silakan masuk lagi')); }
+      gagal(new Error(e));
+    };
+    if (window.google && google.script && google.script.run) google.script.run.withSuccessHandler(done).withFailureHandler(function (e) { gagal(e); }).api(aksi, S.token, arg || {});
+    else if (window.MOCK) setTimeout(function () { done(window.MOCK(aksi, S.token, arg || {})); }, 60);
+    else if (API_URL) {
+      // text/plain agar tidak memicu preflight CORS; Apps Script membaca isinya di doPost.
+      fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ aksi: aksi, token: S.token, arg: arg || {} }), redirect: 'follow' })
+        .then(function (r) { if (!r.ok) throw new Error('Server menjawab ' + r.status); return r.json(); })
+        .then(done)
+        .catch(function (e) { gagal(new Error(navigator.onLine === false ? 'Tidak ada koneksi internet' : 'Gagal menghubungi server: ' + (e && e.message || e))); });
+    }
+    else gagal(new Error('Alamat server belum diatur (config.js)'));
+  });
+}
+
+/** Jalankan aksi dengan tombol "loading". */
+function busy(btn, p) {
+  var asli = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Memproses…'; }
+  return p.then(function (x) { if (btn) { btn.disabled = false; btn.innerHTML = asli; } return x; },
+    function (e) { if (btn) { btn.disabled = false; btn.innerHTML = asli; } toast(e.message || String(e), true); throw e; });
+}
+
+function modal(html, onReady) {
+  var bg = document.createElement('div'); bg.className = 'modal-bg';
+  bg.innerHTML = '<div class="modal">' + html + '</div>';
+  bg.addEventListener('click', function (e) { if (e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+  $$('[data-tutup]', bg).forEach(function (b) { b.onclick = function () { bg.remove(); }; });
+  if (onReady) onReady(bg);
+  return bg;
+}
+
+function unduhBase64(r) {
+  var bin = atob(r.base64), arr = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  var url = URL.createObjectURL(new Blob([arr], { type: r.mime }));
+  var a = document.createElement('a'); a.href = url; a.download = r.nama; document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 4000);
+}
+
+function unduhCSV(nama, kolom, rows) {
+  var csv = [kolom.map(function (k) { return k[1]; })].concat(rows.map(function (r) { return kolom.map(function (k) { return typeof k[0] === 'function' ? k[0](r) : r[k[0]]; }); }))
+    .map(function (r) { return r.map(function (v) { v = String(v == null ? '' : v); return /[",;\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(';'); }).join('\n');
+  unduhBase64({ base64: btoa(unescape(encodeURIComponent('﻿' + csv))), mime: 'text/csv', nama: nama + '.csv' });
+}
+
+/** Baca berkas → base64 (gambar besar diperkecil). */
+function bacaBerkas(file) {
+  return new Promise(function (ok, gagal) {
+    if (!file) return gagal(new Error('Pilih berkas'));
+    var tipe = file.type;
+    if (!/^(application\/pdf|image\/(jpeg|png|webp))$/.test(tipe) && !/\.(xlsx|xls|csv)$/i.test(file.name)) return gagal(new Error('Format harus PDF, JPG, atau PNG'));
+    var r = new FileReader();
+    r.onerror = function () { gagal(new Error('Gagal membaca berkas')); };
+    r.onload = function () {
+      var url = r.result;
+      if (/^image\//.test(tipe) && file.size > 900 * 1024) {
+        var img = new Image();
+        img.onload = function () {
+          var maks = 1800, w = img.width, h = img.height, k = Math.min(1, maks / Math.max(w, h));
+          var c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          ok({ base64: c.toDataURL('image/jpeg', 0.82).split(',')[1], mime: 'image/jpeg', nama: file.name.replace(/\.\w+$/, '.jpg') });
+        };
+        img.onerror = function () { ok({ base64: url.split(',')[1], mime: tipe, nama: file.name }); };
+        img.src = url;
+      } else ok({ base64: url.split(',')[1], mime: tipe || 'application/octet-stream', nama: file.name });
+    };
+    r.readAsDataURL(file);
+  });
+}
+
+/** Tabel generik dengan pencarian. kolom: [[key|fn, judul, cls]] */
+function tabel(el, rows, kolom, opt) {
+  opt = opt || {};
+  var q = (S.f[opt.id + '_q'] || '').toLowerCase();
+  var data = rows.filter(function (r) { return !q || JSON.stringify(r).toLowerCase().indexOf(q) >= 0; });
+  var html = '<div class="baris" style="margin-bottom:8px"><input type="text" class="cari" placeholder="Cari…" value="' + esc(S.f[opt.id + '_q'] || '') + '" data-q><span class="muted">' + data.length + ' baris</span><span class="sp"></span>' + (opt.csv ? '<button class="btn kecil" data-csv>Unduh CSV</button>' : '') + (opt.tombol || '') + '</div>';
+  if (!data.length) html += '<div class="tbl-wrap"><div class="kosong">' + esc(opt.kosong || 'Belum ada data') + '</div></div>';
+  else {
+    var batas = opt.batas || 300;
+    html += '<div class="tbl-wrap"><table><thead><tr>' + kolom.map(function (k) { return '<th>' + esc(k[1]) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      data.slice(0, batas).map(function (r, i) { return '<tr class="' + (opt.klik ? 'klik' : '') + '" data-i="' + i + '">' + kolom.map(function (k) { var v = typeof k[0] === 'function' ? k[0](r) : esc(r[k[0]]); return '<td class="' + (k[2] || '') + '">' + v + '</td>'; }).join('') + '</tr>'; }).join('') +
+      '</tbody></table>' + (data.length > batas ? '<div class="kosong">Menampilkan ' + batas + ' dari ' + data.length + '. Persempit pencarian.</div>' : '') + '</div>';
+  }
+  el.innerHTML = html;
+  var inp = $('[data-q]', el);
+  inp.oninput = function () { S.f[opt.id + '_q'] = inp.value; clearTimeout(inp._t); inp._t = setTimeout(function () { tabel(el, rows, kolom, opt); var n = $('[data-q]', el); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 250); };
+  if (opt.klik) $$('tr.klik', el).forEach(function (tr) { tr.onclick = function () { opt.klik(data[+tr.dataset.i]); }; });
+  if (opt.csv) $('[data-csv]', el).onclick = function () { unduhCSV(opt.csv, opt.csvKolom || kolom.filter(function (k) { return typeof k[0] === 'string'; }), data); };
+  if (opt.onRender) opt.onRender(el);
+}
+
+function filterChips(el, id, pilihan, onChange) {
+  var cur = S.f[id] || 'Semua';
+  el.innerHTML = pilihan.map(function (p) { var lab = Array.isArray(p) ? p[0] + ' (' + p[1] + ')' : p; var v = Array.isArray(p) ? p[0] : p; return '<button class="' + (v === cur ? 'on' : '') + '" data-v="' + esc(v) + '">' + esc(lab) + '</button>'; }).join('');
+  $$('button', el).forEach(function (b) { b.onclick = function () { S.f[id] = b.dataset.v; filterChips(el, id, pilihan, onChange); onChange(b.dataset.v); }; });
+}
+function hitung(arr, fn) { var c = {}; arr.forEach(function (x) { var k = fn(x); c[k] = (c[k] || 0) + 1; }); return c; }
+
+// ---------- kerangka ----------
+function kerangka(tabs) {
+  var me = S.me;
+  var peranLabel = { OWNER: 'Petugas KC', JAKON: 'Admin / Direktur CV', PEMKAB: 'Pemkab / Instansi' }[me.peran];
+  $('#app').innerHTML = '<div class="top"><div class="mono" aria-hidden="true">' + IKON + '</div><div class="judul">SIGAP Jakon<small>Gerbang Kepatuhan Jasa Konstruksi</small></div><span class="sp"></span>' +
+    '<div class="user"><b>' + esc(me.nama) + '</b><br>' + esc(peranLabel) + '</div><button class="btn kecil" id="btnKeluar">Keluar</button></div>' +
+    '<nav class="nav" id="nav"></nav><main id="main"></main><footer class="disc">SIGAP Jakon · aplikasi kreativitas staf KC Pamekasan, bukan aplikasi resmi BPJS Ketenagakerjaan</footer>';
+  $('#btnKeluar').onclick = function () { call('logout').catch(function () { }); keluar(); };
+  var nav = $('#nav');
+  nav.innerHTML = tabs.map(function (t) { return '<button data-t="' + t[0] + '">' + esc(t[1]) + (t[3] ? '<span class="badge">' + t[3] + '</span>' : '') + '</button>'; }).join('');
+  var go = function (id) { S.tab = id; $$('button', nav).forEach(function (b) { b.classList.toggle('on', b.dataset.t === id); }); var t = tabs.filter(function (x) { return x[0] === id; })[0]; $('#main').innerHTML = ''; t[2]($('#main')); window.scrollTo(0, 0); };
+  $$('button', nav).forEach(function (b) { b.onclick = function () { go(b.dataset.t); }; });
+  S.go = go;
+  go(tabs.some(function (t) { return t[0] === S.tab; }) ? S.tab : tabs[0][0]);
+}
+
+function simpanCache(d) { try { store('sigap_awal', JSON.stringify({ t: Date.now(), d: d })); } catch (e) { } }
+function bacaCache() { try { var c = JSON.parse(store('sigap_awal') || 'null'); return c && c.d ? c : null; } catch (e) { return null; } }
+function muatUlang(tetapTab) {
+  return call('awal').then(function (d) { S.d = d; S.me = d.me; simpanCache(d); if (!tetapTab) S.tab = null; tampilPeran(); });
+}
+
+function tampilPeran() {
+  var p = S.me.peran;
+  if (p === 'OWNER') return tampilOwner();
+  if (p === 'PEMKAB') return tampilPemkab();
+  return tampilJakon();
+}
+
+function keluar(diam) {
+  S.token = null; S.me = null; S.d = null; store('sigap_token', null); store('sigap_awal', null);
+  layarLogin(); if (diam) toast('Sesi berakhir, silakan masuk lagi');
+}
+
+// ---------- LOGIN ----------
+function layarLogin() {
+  $('#app').innerHTML = '<div class="login"><div class="kartu"><div class="mono besar" aria-hidden="true">' + IKON + '</div><h1>SIGAP Jakon</h1><div class="muted">Sistem Informasi Gerbang Kepatuhan Jasa Konstruksi</div>' +
+    '<form id="fLogin"><label class="f">ID pengguna</label><input type="text" id="lId" autocomplete="username" autocapitalize="characters" required>' +
+    '<label class="f">Kode akses</label><input type="password" id="lKode" autocomplete="current-password" required>' +
+    '<div style="margin-top:16px"><button class="btn utama" style="width:100%;justify-content:center" id="lBtn">Masuk</button></div></form>' +
+    '<p class="muted" style="margin-top:16px">Belum punya akses? <a href="#" id="lMinta">Minta akses</a></p></div><p class="muted" style="text-align:center;font-size:12px">Aplikasi kreativitas staf KC Pamekasan, bukan aplikasi resmi BPJS Ketenagakerjaan.</p></div>';
+  $('#fLogin').onsubmit = function (e) {
+    e.preventDefault();
+    busy($('#lBtn'), call('login', { id: $('#lId').value, kode: $('#lKode').value })).then(function (r) {
+      S.token = r.token; S.me = r.user; store('sigap_token', r.token); S.tab = null;
+      $('#app').innerHTML = '<div class="loading">Memuat data…</div>';
+      return muatUlang();
+    }).catch(function () { });
+  };
+  $('#lMinta').onclick = function (e) { e.preventDefault(); formMintaAkses(); };
+}
+
+function formMintaAkses() {
+  modal('<h3>Minta akses SIGAP Jakon</h3><p class="muted">Pembina akan memeriksa dan mengirim ID serta kode akses lewat WhatsApp.</p>' +
+    '<label class="f">Saya adalah</label><select id="mPeran"><option value="JAKON">Admin / pelaksana / direktur CV/PT jasa konstruksi</option><option value="PEMKAB">Pegawai Pemkab / instansi</option></select>' +
+    '<label class="f">Nama lengkap</label><input type="text" id="mNama">' +
+    '<label class="f">Nomor HP / WhatsApp</label><input type="tel" id="mHp" placeholder="08…">' +
+    '<label class="f">Instansi / nama CV-PT</label><input type="text" id="mIns">' +
+    '<label class="f">Daftar CV/PT yang Anda urus <small>(untuk admin; pisahkan dengan koma)</small></label><textarea id="mCv"></textarea>' +
+    '<div class="aksi"><button class="btn" data-tutup>Batal</button><button class="btn utama" id="mKirim">Kirim permintaan</button></div>', function (bg) {
+      $('#mKirim', bg).onclick = function () {
+        busy(this, call('mintaAkses', { peran: $('#mPeran', bg).value, nama: $('#mNama', bg).value, noHp: $('#mHp', bg).value, instansi: $('#mIns', bg).value, cv: $('#mCv', bg).value }))
+          .then(function () { bg.remove(); toast('Permintaan terkirim. Tunggu kabar dari petugas KC.'); }).catch(function () { });
+      };
+    });
+}
+
+/* ============================================================
+   OWNER
+   ============================================================ */
+function tampilOwner() {
+  var d = S.d;
+  var nPeng = d.pengajuan.filter(function (p) { return p.Status === 'Diajukan'; }).length;
+  kerangka([
+    ['ring', 'Ringkasan', ownerRingkasan],
+    ['cv', 'CV/PT', ownerCv],
+    ['proyek', 'Proyek', ownerProyek],
+    ['peng', 'Pengajuan', ownerPengajuan, nPeng || ''],
+    ['user', 'Pengguna', ownerPengguna, d.akses.length || ''],
+    ['data', 'Data', ownerData],
+    ['set', 'Pengaturan', ownerSetelan]
+  ]);
+}
+
+function masalahPaket(d) {
+  return d.paket.filter(function (p) { return p.Pemenang && p.StatusCV && p.StatusCV !== 'Terdaftar aktif' && ['Selesai', 'Dibatalkan'].indexOf(p.StatusPemkab) < 0; });
+}
+
+function ownerRingkasan(el) {
+  var d = S.d, st = hitung(d.cv, function (c) { return c.Status; });
+  var berpemenang = d.paket.filter(function (p) { return p.Pemenang; });
+  var real = d.paket.filter(function (p) { return ['Berjalan', 'Checklist BPJSTK', 'Selesai'].indexOf(p.StatusPemkab) >= 0; }).length;
+  var tunda = d.paket.filter(function (p) { return p.StatusPemkab === 'Ditunda'; }).length;
+  var masalah = masalahPaket(d);
+  var mirip = d.paket.filter(function (p) { return String(p.StatusCocok).indexOf('Mirip') === 0; });
+  var kpi = function (n, l, cls, go) { return '<div class="kpi ' + (cls || '') + (go ? ' klik' : '') + '" ' + (go ? 'data-go="' + go + '"' : '') + '><div class="n">' + n + '</div><div class="l">' + esc(l) + '</div></div>'; };
+  el.innerHTML = '<div class="baris"><h2>Ringkasan</h2><span class="sp"></span><button class="btn utama" id="bSinkron">Tarik & sinkron sekarang</button></div>' + kartuInaproc(true) +
+    '<h3>CV/PT jasa konstruksi</h3><div class="grid">' + kpi(d.cv.length, 'Total CV/PT', '', 'cv') + kpi(st['Terdaftar aktif'] || 0, 'Terdaftar aktif', 'hijau', 'cv:Terdaftar aktif') + kpi(st['Menunggak'] || 0, 'Menunggak', 'merah', 'cv:Menunggak') + kpi(st['Nonaktif'] || 0, 'Nonaktif', '', 'cv:Nonaktif') + kpi(st['Belum terdaftar / perlu cek'] || 0, 'Belum terdaftar / perlu cek', 'oranye', 'cv:Belum terdaftar / perlu cek') + '</div>' +
+    '<h3>Proyek konstruksi (INAPROC + laporan CV)</h3><div class="grid">' + kpi(d.paket.length, 'Paket konstruksi', '', 'proyek') + kpi(d.paket.length - berpemenang.length, 'Rencana, belum ada pemenang') + kpi(berpemenang.length, 'Sudah ada pemenang', 'biru') + kpi(real, 'Berjalan / checklist / selesai', 'hijau') + kpi(tunda, 'Ditunda', 'oranye') + kpi(masalah.length, 'Pemenang bermasalah', 'merah', 'proyek:masalah') + '</div>' +
+    '<h3>Antrean</h3><div class="grid">' + kpi(d.pengajuan.filter(function (p) { return p.Status === 'Diajukan'; }).length, 'Pengajuan menunggu verifikasi', 'biru', 'peng') + kpi(d.akses.length, 'Permintaan akses', '', 'user') + kpi(mirip.length, 'Nama pemenang perlu dicek', 'oranye', 'proyek:mirip') + '</div>' +
+    '<h3>Prioritas tindak lanjut: pemenang yang menunggak / nonaktif / belum terdaftar</h3><div id="prio"></div>';
+  $$('[data-go]', el).forEach(function (k) {
+    k.onclick = function () { var g = k.dataset.go.split(':'); if (g[0] === 'cv' && g[1]) S.f.cvSt = g[1]; if (g[0] === 'proyek' && g[1]) S.f.pkFil = g[1] === 'masalah' ? 'Bermasalah' : 'Nama perlu dicek'; S.go(g[0]); };
+  });
+  $('#bSinkron').onclick = function () { sinkronDanTampil(this); };
+  var urut = { 'Menunggak': 0, 'Nonaktif': 1, 'Belum terdaftar / perlu cek': 2 };
+  masalah.sort(function (a, b) { return (urut[a.StatusCV] || 9) - (urut[b.StatusCV] || 9) || (b.NilaiKontrak || b.Pagu || 0) - (a.NilaiKontrak || a.Pagu || 0); });
+  tabel($('#prio'), masalah, [
+    ['Pemenang', 'Pemenang'], [function (r) { return chip(r.StatusCV); }, 'Status CV'], ['NamaPaket', 'Paket'], ['Satker', 'Satker'],
+    [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return chip(r.StatusPemkab); }, 'Status proyek'],
+    [function (r) { return r.KontakCV ? '<a class="btn wa kecil" target="_blank" href="' + esc(waLink(r.KontakCV, pesanTagih(r))) + '" onclick="event.stopPropagation()">WA</a>' : ''; }, '']
+  ], { id: 'prio', klik: detailPaket, csv: 'prioritas-tindak-lanjut', kosong: 'Tidak ada pemenang bermasalah. Mantap!' });
+}
+
+function pesanTagih(p) {
+  if (p.StatusCV === 'Terdaftar aktif') return 'Halo, kami dari BPJS Ketenagakerjaan KC Pamekasan 👋\n\nSelamat atas paket "' + p.NamaPaket + '" yang dikerjakan ' + p.Pemenang + '. Mohon pastikan proyek ini didaftarkan pada program Jasa Konstruksi BPJS Ketenagakerjaan agar seluruh pekerja proyek terlindungi. Kami siap membantu 🙏';
+  var s = p.StatusCV === 'Menunggak' ? 'masih terdapat tunggakan iuran' : p.StatusCV === 'Nonaktif' ? 'kepesertaannya berstatus nonaktif' : 'belum kami temukan terdaftar sebagai peserta';
+  return 'Halo, kami dari BPJS Ketenagakerjaan KC Pamekasan 👋\n\nSelamat atas paket "' + p.NamaPaket + '" yang dikerjakan ' + p.Pemenang + '. Berdasarkan data kami, perusahaan ' + s + '.\n\nMohon segera diselesaikan agar pekerja proyek terlindungi dan proses pencairan termin tidak terhambat. Kami siap membantu 🙏';
+}
+
+function sinkronDanTampil(btn) {
+  busy(btn, call('sinkron')).then(function (r) {
+    var baris = [];
+    (r.api || []).forEach(function (a) { baris.push('API ' + esc(a.endpoint || '') + ': ' + esc(a.error || a.info || (a.relevan + ' paket relevan, ' + a.baru + ' baru'))); });
+    baris.push((r.inbox || []).length ? (r.inbox.map(function (a) { return 'Inbox ' + esc(a.file) + ': ' + esc(a.error || (a.relevan + ' relevan, ' + a.baru + ' baru')); }).join('<br>')) : 'Inbox: tidak ada berkas baru');
+    if (r.lensa) baris.push('LENSA: ' + esc(r.lensa.info || (r.lensa.baru + ' CV baru, ' + r.lensa.diperbarui + ' diperbarui')));
+    if (r.cocok) baris.push('Pencocokan: ' + r.cocok.cocok + ' cocok, ' + r.cocok.mirip + ' mirip, ' + r.cocok.baru + ' tidak ada di LENSA');
+    (r.galat || []).forEach(function (g) { baris.push('<span style="color:var(--merah)">' + esc(g) + '</span>'); });
+    modal('<h3>Hasil sinkron</h3><div>' + baris.join('<br>') + '</div><div class="aksi"><button class="btn utama" data-tutup>Tutup</button></div>');
+    return muatUlang(true);
+  }).catch(function () { });
+}
+
+function ownerCv(el) {
+  var d = S.d, st = hitung(d.cv, function (c) { return c.Status; });
+  var nPaket = hitung(d.paket.filter(function (p) { return p.CV_ID; }), function (p) { return p.CV_ID; });
+  el.innerHTML = '<div class="baris"><h2>CV/PT jasa konstruksi</h2><span class="sp"></span><button class="btn" id="bTambahCv">+ Tambah manual</button></div><div class="filters" id="fCv"></div><div id="tCv"></div>';
+  var render = function () {
+    var f = S.f.cvSt || 'Semua';
+    var rows = d.cv.filter(function (c) { return f === 'Semua' || c.Status === f; }).map(function (c) { c._paket = nPaket[c.ID] || 0; return c; });
+    rows.sort(function (a, b) { return b._paket - a._paket || String(a.Nama).localeCompare(b.Nama); });
+    tabel($('#tCv'), rows, [['Nama', 'Nama'], ['NPP', 'NPP'], [function (r) { return chip(r.Status) + (r.StatusManual ? ' <span class="muted">(manual)</span>' : ''); }, 'Status'],
+      [function (r) { return r.BulanTunggak === '' || r.BulanTunggak == null ? '-' : esc(r.BulanTunggak); }, 'Bln tunggak', 'num'], [function (r) { return r._paket || '-'; }, 'Paket', 'num'], ['DiLENSA', 'Di LENSA'], ['Sumber', 'Sumber']],
+      { id: 'cv', klik: detailCv, csv: 'cv-jakon', csvKolom: [['Nama', 'Nama'], ['NPP', 'NPP'], ['Status', 'Status'], ['BulanTunggak', 'Bulan tunggak'], ['NominalTunggak', 'Nominal'], ['_paket', 'Jumlah paket'], ['DiLENSA', 'Di LENSA'], ['Kontak', 'Kontak'], ['Alamat', 'Alamat'], ['Catatan', 'Catatan']] });
+  };
+  filterChips($('#fCv'), 'cvSt', [['Semua', d.cv.length]].concat(STATUS_CV.map(function (s) { return [s, st[s] || 0]; })), render);
+  render();
+  $('#bTambahCv').onclick = function () { detailCv({}); };
+}
+
+function detailCv(c) {
+  var d = S.d, baru = !c.ID;
+  var paket = baru ? [] : d.paket.filter(function (p) { return p.CV_ID === c.ID; });
+  var users = baru ? [] : d.pengguna.filter(function (u) { return String(u.CV_IDs).split(',').indexOf(c.ID) >= 0; });
+  modal('<h3>' + (baru ? 'Tambah CV/PT' : esc(c.Nama)) + '</h3>' +
+    (baru ? '<label class="f">Nama CV/PT</label><input type="text" id="cNama">' : '<div class="baris">' + chip(c.Status) + '<span class="muted">Status otomatis: ' + esc(c.StatusOtomatis || '-') + ' · Bulan tunggak: ' + esc(c.BulanTunggak === '' ? '-' : c.BulanTunggak) + ' · Nominal: ' + rp(c.NominalTunggak) + '</span></div><p class="muted">' + esc(c.JenisUsaha || '') + '</p>') +
+    '<div class="dua"><div><label class="f">NPP</label><input type="text" id="cNpp" value="' + esc(c.NPP || '') + '"></div><div><label class="f">Kontak (HP)</label><input type="tel" id="cKontak" value="' + esc(c.Kontak || '') + '"></div></div>' +
+    '<label class="f">Alamat</label><input type="text" id="cAlamat" value="' + esc(c.Alamat || '') + '">' +
+    '<label class="f">Status manual <small>(mengalahkan status otomatis; kosongkan untuk ikut LENSA)</small></label><select id="cStatus"><option value="">— ikut status otomatis —</option>' + STATUS_CV.concat(['Terdaftar – binaan pembina lain']).map(function (s) { return '<option ' + (c.StatusManual === s ? 'selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select>' +
+    '<label class="f">Catatan</label><textarea id="cCat">' + esc(c.Catatan || '') + '</textarea>' +
+    (paket.length ? '<h3>Paket (' + paket.length + ')</h3>' + paket.map(function (p) { return '<div class="muted">• ' + esc(p.NamaPaket) + ' — ' + jt(p.NilaiKontrak || p.Pagu) + ' ' + chip(p.StatusPemkab) + '</div>'; }).join('') : '') +
+    (users.length ? '<h3>Pengguna terhubung</h3>' + users.map(function (u) { return '<div class="muted">• ' + esc(u.Nama) + ' (' + esc(u.ID) + ') ' + esc(u.NoHP) + '</div>'; }).join('') : '') +
+    '<div class="aksi">' + (c.Kontak ? '<a class="btn wa" target="_blank" href="' + esc(waLink(c.Kontak, 'Halo, kami dari BPJS Ketenagakerjaan KC Pamekasan 👋 terkait kepesertaan ' + c.Nama + '.')) + '">WhatsApp</a>' : '') +
+    '<button class="btn" data-tutup>Tutup</button><button class="btn utama" id="cSimpan">Simpan</button></div>', function (bg) {
+      $('#cSimpan', bg).onclick = function () {
+        var a = { id: c.ID, NPP: $('#cNpp', bg).value, Kontak: $('#cKontak', bg).value, Alamat: $('#cAlamat', bg).value, StatusManual: $('#cStatus', bg).value, Catatan: $('#cCat', bg).value };
+        if (baru) { a.Nama = $('#cNama', bg).value; if (!a.Nama) return toast('Isi nama', true); }
+        busy(this, call('simpanCv', a)).then(function () { bg.remove(); toast('Tersimpan'); return muatUlang(true); }).catch(function () { });
+      };
+    });
+}
+
+function ownerProyek(el) {
+  var d = S.d;
+  el.innerHTML = '<h2>Proyek konstruksi</h2><div class="filters" id="fPk"></div><div class="filters" id="fPk2"></div><div id="tPk"></div>';
+  var opsi = ['Semua', 'Bermasalah', 'Nama perlu dicek', 'Belum ada pemenang', 'Ada pemenang'];
+  var render = function () {
+    var f = S.f.pkFil || 'Semua', f2 = S.f.pkSt || 'Semua status';
+    var rows = d.paket.filter(function (p) {
+      if (f === 'Bermasalah' && !(p.Pemenang && p.StatusCV && p.StatusCV !== 'Terdaftar aktif')) return false;
+      if (f === 'Nama perlu dicek' && !/^(Mirip|Tidak ada)/.test(p.StatusCocok || '')) return false;
+      if (f === 'Belum ada pemenang' && p.Pemenang) return false;
+      if (f === 'Ada pemenang' && !p.Pemenang) return false;
+      if (f2 !== 'Semua status' && (p.StatusPemkab || 'Belum dimulai') !== f2) return false;
+      return true;
+    });
+    tabel($('#tPk'), rows, [['NamaPaket', 'Paket'], ['Satker', 'Satker'], [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], ['Tahap', 'Tahap'],
+      [function (r) { return esc(r.Pemenang || '-') + (r.StatusCocok && r.StatusCocok !== 'Cocok' ? '<br><span class="muted">' + esc(r.StatusCocok) + '</span>' : ''); }, 'Pemenang'],
+      [function (r) { return chip(r.StatusCV); }, 'Status CV'], [function (r) { return chip(r.StatusPemkab || 'Belum dimulai'); }, 'Status proyek']],
+      { id: 'pk', klik: detailPaket, csv: 'proyek-konstruksi', csvKolom: [['KodeRUP', 'Kode RUP'], ['KodePaket', 'Kode paket'], ['Sumber', 'Sumber'], ['Tahun', 'Tahun'], ['Satker', 'Satker'], ['NamaPaket', 'Nama paket'], ['JenisPengadaan', 'Jenis'], ['Metode', 'Metode'], ['Pagu', 'Pagu'], ['NilaiKontrak', 'Nilai kontrak'], ['Pemenang', 'Pemenang'], ['StatusCV', 'Status CV'], ['StatusPemkab', 'Status proyek'], ['PerkiraanRealisasi', 'Perkiraan realisasi'], ['KetPemkab', 'Keterangan']] });
+  };
+  filterChips($('#fPk'), 'pkFil', opsi, render);
+  filterChips($('#fPk2'), 'pkSt', ['Semua status'].concat(S.d.info.statusPemkab), render);
+  render();
+}
+
+function formTandai(p) {
+  return '<h3 style="margin-top:16px">Status pelaksanaan</h3><label class="f">Status</label><select id="tSt">' + S.d.info.statusPemkab.map(function (s) { return '<option ' + ((p.StatusPemkab || 'Belum dimulai') === s ? 'selected' : '') + '>' + s + '</option>'; }).join('') + '</select>' +
+    '<div id="tPerkW"><label class="f">Perkiraan realisasi (bulan & tahun)</label><input type="month" id="tPerk" value="' + esc(p.PerkiraanRealisasi || '') + '"></div>' +
+    '<label class="f">Keterangan <small id="tKetHint"></small></label><textarea id="tKet">' + esc(p.KetPemkab || '') + '</textarea>' +
+    '<div id="tBuktiW"><label class="f">Bukti bayar BPJSTK <small>(opsional, PDF/JPG)</small></label><input type="file" id="tBukti" accept="application/pdf,image/*">' + (p.BuktiURL ? '<div class="muted">Sudah ada: <a target="_blank" href="' + esc(p.BuktiURL) + '">lihat bukti</a></div>' : '') + '</div>';
+}
+function pasangTandai(bg, p, after) {
+  var sync = function () { var v = $('#tSt', bg).value; $('#tPerkW', bg).classList.toggle('hidden', v !== 'Ditunda'); $('#tBuktiW', bg).classList.toggle('hidden', ['Checklist BPJSTK', 'Selesai', 'Berjalan'].indexOf(v) < 0); $('#tKetHint', bg).textContent = v === 'Ditunda' || v === 'Dibatalkan' ? '(wajib: alasannya)' : '(opsional)'; };
+  $('#tSt', bg).onchange = sync; sync();
+  $('#tSimpan', bg).onclick = function () {
+    var btn = this, f = $('#tBukti', bg).files[0];
+    var p1 = call('tandaiPaket', { id: p.ID, status: $('#tSt', bg).value, perkiraan: $('#tPerk', bg).value, ket: $('#tKet', bg).value });
+    var p2 = p1.then(function () { if (!f) return; return bacaBerkas(f).then(function (b) { return call('unggahBerkas', { paketId: p.ID, base64: b.base64, mime: b.mime }); }); });
+    busy(btn, p2).then(function () { bg.remove(); toast('Status proyek tersimpan'); return muatUlang(true); }).then(after || function () { }).catch(function () { });
+  };
+}
+
+function detailPaket(p) {
+  var d = S.d, owner = S.me.peran === 'OWNER';
+  var cvOpt = owner ? '<option value="">— lepas tautan —</option>' + d.cv.slice().sort(function (a, b) { return String(a.Nama).localeCompare(b.Nama); }).map(function (c) { return '<option value="' + esc(c.ID) + '" ' + (c.ID === p.CV_ID ? 'selected' : '') + '>' + esc(c.Nama) + (c.NPP ? ' · ' + esc(c.NPP) : '') + '</option>'; }).join('') : '';
+  modal('<h3>' + esc(p.NamaPaket) + '</h3>' +
+    '<table><tbody>' + [['Satker', p.Satker], ['Kode RUP / paket', (p.KodeRUP || '-') + ' / ' + (p.KodePaket || '-')], ['Jenis / metode', (p.JenisPengadaan || '-') + ' / ' + (p.Metode || '-')], ['Pagu', rp(p.Pagu)], ['Nilai kontrak', rp(p.NilaiKontrak)], ['Tahap', p.Tahap], ['Lokasi', p.Lokasi], ['Sumber', p.Sumber || ''], ['Pemenang', p.Pemenang || '-']]
+      .filter(function (x) { return x[1] !== undefined && x[1] !== '' && x[1] !== '-' && x[1] !== '- / -'; }).map(function (x) { return '<tr><th style="width:38%">' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; }).join('') +
+    '<tr><th>Status CV</th><td>' + (chip(p.StatusCV) || '-') + '</td></tr>' + (p.DitandaiPada ? '<tr><th>Terakhir ditandai</th><td>' + esc(p.DitandaiPada) + (p.DitandaiOleh ? ' oleh ' + esc(p.DitandaiOleh) : '') + '</td></tr>' : '') + '</tbody></table>' +
+    (owner && p.Pemenang ? '<label class="f">Tautkan pemenang ke CV <small>(' + esc(p.StatusCocok || '-') + ')</small></label><div class="baris"><select id="pCv" style="flex:1">' + cvOpt + '</select><button class="btn" id="pTaut">Simpan tautan</button></div>' : '') +
+    formTandai(p) +
+    '<div class="aksi">' + (owner && p.KontakCV ? '<a class="btn wa" target="_blank" href="' + esc(waLink(p.KontakCV, pesanTagih(p))) + '">WA ke CV</a>' : '') + '<button class="btn" data-tutup>Tutup</button><button class="btn utama" id="tSimpan">Simpan status</button></div>', function (bg) {
+      pasangTandai(bg, p);
+      if ($('#pTaut', bg)) $('#pTaut', bg).onclick = function () { busy(this, call('tautkanPaket', { paketId: p.ID, cvId: $('#pCv', bg).value })).then(function () { bg.remove(); toast('Tautan tersimpan'); return muatUlang(true); }).catch(function () { }); };
+    });
+}
+
+function ownerPengajuan(el) {
+  var d = S.d, st = hitung(d.pengajuan, function (p) { return p.Status; });
+  el.innerHTML = '<h2>Pengajuan dari CV/PT</h2><div class="filters" id="fPg"></div><div id="lPg"></div>';
+  var render = function () {
+    var f = S.f.pgSt || 'Diajukan';
+    var rows = d.pengajuan.filter(function (p) { return f === 'Semua' || p.Status === f; });
+    tabel($('#lPg'), rows, [['ID', 'Nomor'], ['Jenis', 'Jenis'], ['NamaPK', 'Perusahaan'], ['UserID', 'Oleh'], [function (r) { return chip(r.Status); }, 'Status'], ['Diperbarui', 'Diperbarui']], { id: 'pg', klik: detailPengajuan, kosong: 'Tidak ada pengajuan dengan status ini' });
+  };
+  filterChips($('#fPg'), 'pgSt', [['Diajukan', st['Diajukan'] || 0], ['Perlu perbaikan', st['Perlu perbaikan'] || 0], ['Diverifikasi', st['Diverifikasi'] || 0], ['Selesai', st['Selesai'] || 0], ['Ditolak', st['Ditolak'] || 0], ['Draf', st['Draf'] || 0], ['Semua', d.pengajuan.length]], render);
+  render();
+}
+
+
+function ownerPengguna(el) {
+  var d = S.d;
+  el.innerHTML = '<div class="baris"><h2>Pengguna & akses</h2><span class="sp"></span><button class="btn utama" id="bTambahU">+ Tambah pengguna</button></div>' +
+    (d.akses.length ? '<h3>Permintaan akses menunggu</h3><div id="lAk"></div>' : '') + '<h3>Daftar pengguna</h3><div id="tU"></div>';
+  if (d.akses.length) $('#lAk').innerHTML = d.akses.map(function (a, i) { return '<div class="item" data-i="' + i + '"><div class="t">' + esc(a.Nama) + ' <span class="chip">' + esc(a.Peran) + '</span></div><div class="s">' + esc(a.Instansi || '-') + ' · ' + esc(a.NoHP) + ' · ' + esc(a.Waktu) + '</div>' + (a.CV_Diurus ? '<div class="s">CV diurus: ' + esc(a.CV_Diurus) + '</div>' : '') + '</div>'; }).join('');
+  $$('#lAk .item').forEach(function (it) { it.onclick = function () { prosesAkses(d.akses[+it.dataset.i]); }; });
+  var namaCv = {}; d.cv.forEach(function (c) { namaCv[c.ID] = c.Nama; });
+  tabel($('#tU'), d.pengguna, [['ID', 'ID'], ['Nama', 'Nama'], ['Peran', 'Peran'], ['Instansi', 'Instansi'], ['NoHP', 'HP'],
+    [function (r) { var l = String(r.CV_IDs || '').split(',').filter(String); return l.length ? esc(l.map(function (x) { return namaCv[x] || x; }).join(', ')) : '-'; }, 'CV terhubung'],
+    [function (r) { return chip(r.Aktif === 'Ya' ? 'Aktif' : 'Nonaktif'); }, 'Status'], ['LoginTerakhir', 'Login terakhir']], { id: 'u', klik: formPengguna });
+  $('#bTambahU').onclick = function () { formPengguna({}); };
+}
+
+function pilihCvHtml(terpilih) {
+  var t = {}; (terpilih || []).forEach(function (x) { t[x] = 1; });
+  return '<input type="text" placeholder="Cari CV…" id="cvCari" style="margin-bottom:6px"><div id="cvList" style="max-height:220px;overflow:auto;border:1px solid var(--garis);border-radius:9px;padding:6px 8px">' +
+    S.d.cv.slice().sort(function (a, b) { return (t[b.ID] ? 1 : 0) - (t[a.ID] ? 1 : 0) || String(a.Nama).localeCompare(b.Nama); }).map(function (c) { return '<label style="display:block;padding:3px 0"><input type="checkbox" value="' + esc(c.ID) + '" ' + (t[c.ID] ? 'checked' : '') + '> ' + esc(c.Nama) + ' <span class="muted">' + esc(c.NPP || '') + '</span></label>'; }).join('') + '</div>';
+}
+function pasangPilihCv(bg) {
+  $('#cvCari', bg).oninput = function () { var q = this.value.toLowerCase(); $$('#cvList label', bg).forEach(function (l) { l.style.display = l.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none'; }); };
+  return function () { return $$('#cvList input:checked', bg).map(function (i) { return i.value; }); };
+}
+
+function tampilKode(nama, id, kode, noHp) {
+  var t = 'Halo ' + nama + ' 👋\nBerikut akses Anda ke *SIGAP Jakon* BPJS Ketenagakerjaan KC Pamekasan:\n\n🔗 ' + S.d.info.url + '\n👤 ID: *' + id + '*\n🔑 Kode akses: *' + kode + '*\n\nJaga kerahasiaan kode ini ya 🙏';
+  modal('<h3>Kode akses untuk ' + esc(nama) + '</h3><p>ID: <b>' + esc(id) + '</b></p><div class="kode">' + esc(kode) + '</div><p class="muted">Kode hanya tampil sekali ini. Kirim ke pengguna sekarang.</p>' +
+    '<div class="aksi"><button class="btn" data-tutup>Tutup</button>' + (noHp ? '<a class="btn wa" target="_blank" href="' + esc(waLink(noHp, t)) + '">Kirim lewat WA</a>' : '') + '</div>');
+}
+
+function formPengguna(u) {
+  var baru = !u.ID;
+  modal('<h3>' + (baru ? 'Tambah pengguna' : 'Ubah pengguna ' + esc(u.ID)) + '</h3>' +
+    '<div class="dua"><div><label class="f">Nama</label><input type="text" id="uNama" value="' + esc(u.Nama || '') + '"></div><div><label class="f">Peran</label><select id="uPeran">' + [['JAKON', 'Admin / pelaksana / direktur CV'], ['PEMKAB', 'Pemkab / instansi'], ['OWNER', 'Petugas KC (owner)']].map(function (p) { return '<option value="' + p[0] + '" ' + (u.Peran === p[0] ? 'selected' : '') + '>' + p[1] + '</option>'; }).join('') + '</select></div></div>' +
+    '<div class="dua"><div><label class="f">Instansi / jabatan</label><input type="text" id="uIns" value="' + esc(u.Instansi || '') + '"></div><div><label class="f">Nomor HP</label><input type="tel" id="uHp" value="' + esc(u.NoHP || '') + '"></div></div>' +
+    '<div id="uCvW"><label class="f">CV/PT yang boleh diakses</label>' + pilihCvHtml(String(u.CV_IDs || '').split(',').filter(String)) + '</div>' +
+    '<label class="f">Catatan</label><input type="text" id="uCat" value="' + esc(u.Catatan || '') + '">' +
+    '<div class="aksi">' + (!baru ? '<button class="btn bahaya" id="uAktif">' + (u.Aktif === 'Ya' ? 'Nonaktifkan' : 'Aktifkan') + '</button><button class="btn" id="uSesi">Keluarkan dari semua perangkat</button><button class="btn" id="uReset">Buat kode baru</button>' : '') +
+    '<button class="btn" data-tutup>Batal</button><button class="btn utama" id="uSimpan">Simpan</button></div>', function (bg) {
+      var ambilCv = pasangPilihCv(bg);
+      var sync = function () { $('#uCvW', bg).classList.toggle('hidden', $('#uPeran', bg).value !== 'JAKON'); };
+      $('#uPeran', bg).onchange = sync; sync();
+      $('#uSimpan', bg).onclick = function () {
+        var a = { id: u.ID, nama: $('#uNama', bg).value, peran: $('#uPeran', bg).value, instansi: $('#uIns', bg).value, noHp: $('#uHp', bg).value, catatan: $('#uCat', bg).value, cvIds: $('#uPeran', bg).value === 'JAKON' ? ambilCv() : [] };
+        if (!a.nama) return toast('Isi nama', true);
+        busy(this, call('simpanPengguna', a)).then(function (r) { bg.remove(); if (r.kode) tampilKode(a.nama, r.id, r.kode, a.noHp); else toast('Tersimpan'); return muatUlang(true); }).catch(function () { });
+      };
+      if (!baru) {
+        $('#uReset', bg).onclick = function () { if (!confirm('Buat kode baru? Kode lama tidak berlaku lagi.')) return; busy(this, call('resetKode', { id: u.ID })).then(function (r) { bg.remove(); tampilKode(u.Nama, u.ID, r.kode, u.NoHP); }).catch(function () { }); };
+        $('#uAktif', bg).onclick = function () { busy(this, call('aturAktif', { id: u.ID, aktif: u.Aktif !== 'Ya' })).then(function () { bg.remove(); toast('Tersimpan'); return muatUlang(true); }).catch(function () { }); };
+        $('#uSesi', bg).onclick = function () { busy(this, call('aturAktif', { id: u.ID })).then(function () { toast('Semua sesi pengguna ini sudah dikeluarkan'); }).catch(function () { }); };
+      }
+    });
+}
+
+function prosesAkses(a) {
+  modal('<h3>Permintaan akses: ' + esc(a.Nama) + '</h3><p>' + esc(a.Peran) + ' · ' + esc(a.Instansi || '-') + ' · ' + esc(a.NoHP) + '</p>' + (a.CV_Diurus ? '<div class="info">CV yang disebut: ' + esc(a.CV_Diurus) + '</div>' : '') +
+    (a.Peran === 'JAKON' ? '<label class="f">Hubungkan ke CV/PT</label>' + pilihCvHtml([]) + '<p class="muted">CV yang belum ada bisa didaftarkan pengguna lewat menu Pendaftaran setelah masuk.</p>' : '') +
+    '<div class="aksi"><button class="btn bahaya" id="aTolak">Tolak</button><button class="btn" data-tutup>Nanti</button><button class="btn utama" id="aSetuju">Setujui & buat kode</button></div>', function (bg) {
+      var ambil = a.Peran === 'JAKON' ? pasangPilihCv(bg) : function () { return []; };
+      $('#aSetuju', bg).onclick = function () { busy(this, call('prosesAkses', { id: a.ID, setuju: true, cvIds: ambil() })).then(function (r) { bg.remove(); tampilKode(r.nama, r.id, r.kode, r.noHp); return muatUlang(true); }).catch(function () { }); };
+      $('#aTolak', bg).onclick = function () { busy(this, call('prosesAkses', { id: a.ID, setuju: false })).then(function () { bg.remove(); toast('Ditolak'); return muatUlang(true); }).catch(function () { }); };
+    });
+}
+
+function ownerSetelan(el) {
+  var d = S.d;
+  el.innerHTML = '<div class="baris"><h2>Pengaturan</h2><span class="sp"></span><button class="btn" id="bLog">Lihat log aktivitas</button></div><div class="info kuning">Nilai bertanda "Diisi otomatis" sebaiknya tidak diubah. Kunci API tersimpan di Sheet Anda dan tidak ditampilkan.</div><div id="tCfg"></div>';
+  tabel($('#tCfg'), d.config, [['Kunci', 'Kunci'], [function (r) { return '<input type="text" value="' + esc(r.Nilai) + '" data-k="' + esc(r.Kunci) + '" ' + (/^(FOLDER_|TPL_)/.test(r.Kunci) ? 'disabled' : '') + '>'; }, 'Nilai'], ['Keterangan', 'Keterangan']], {
+    id: 'cfg', batas: 100, onRender: function (w) {
+      $$('input[data-k]', w).forEach(function (i) {
+        i.onchange = function () { if (i.value === '••••••') return; call('simpanConfig', { kunci: i.dataset.k, nilai: i.value }).then(function () { toast(i.dataset.k + ' tersimpan'); }).catch(function (e) { toast(e.message, true); }); };
+      });
+    }
+  });
+  $('#bLog').onclick = function () {
+    busy(this, call('muatLog')).then(function (r) {
+      var bg = modal('<h3>Log aktivitas (300 terakhir)</h3><div id="tLog"></div><div class="aksi"><button class="btn utama" data-tutup>Tutup</button></div>');
+      tabel($('#tLog', bg), r, [['Waktu', 'Waktu'], ['UserID', 'Pengguna'], ['Aksi', 'Aksi'], ['Detail', 'Detail']], { id: 'log', csv: 'log-sigap' });
+    }).catch(function () { });
+  };
+}
+
+/* ============================================================
+   PEMKAB
+   ============================================================ */
+function tampilPemkab() {
+  kerangka([['rekap', 'Rekap', pemkabRekap], ['proyek', 'Proyek', pemkabProyek], ['cv', 'Status CV', pemkabCv]]);
+}
+
+function pemkabRekap(el) {
+  var d = S.d, pk = d.paket, st = hitung(pk, function (p) { return p.StatusPemkab || 'Belum dimulai'; });
+  var berp = pk.filter(function (p) { return p.Pemenang; });
+  var real = pk.filter(function (p) { return ['Berjalan', 'Checklist BPJSTK', 'Selesai'].indexOf(p.StatusPemkab) >= 0; });
+  var nilai = function (arr) { return arr.reduce(function (s, p) { return s + (Number(p.NilaiKontrak) || Number(p.Pagu) || 0); }, 0); };
+  var pct = berp.length ? Math.round(real.length / berp.length * 100) : 0;
+  var cvSt = hitung(d.cv, function (c) { return c.Status; });
+  var satker = {};
+  pk.forEach(function (p) { var k = p.Satker || '(tanpa satker)'; satker[k] = satker[k] || { n: 0, real: 0, tunda: 0, checklist: 0 }; satker[k].n++; if (['Berjalan', 'Checklist BPJSTK', 'Selesai'].indexOf(p.StatusPemkab) >= 0) satker[k].real++; if (p.StatusPemkab === 'Ditunda') satker[k].tunda++; if (p.StatusPemkab === 'Checklist BPJSTK' || p.StatusPemkab === 'Selesai') satker[k].checklist++; });
+  var kpi = function (n, l, cls, sub) { return '<div class="kpi ' + (cls || '') + '"><div class="n">' + n + '</div><div class="l">' + esc(l) + (sub ? '<br>' + esc(sub) : '') + '</div></div>'; };
+  el.innerHTML = '<h2>Rekap proyek konstruksi ' + esc(d.info.tahun || '') + '</h2>' +
+    '<div class="grid">' + kpi(pk.length, 'Paket konstruksi', '', jt(nilai(pk))) + kpi(pk.length - berp.length, 'Rencana, belum ada pemenang') + kpi(berp.length, 'Sudah ada pemenang', 'biru') + kpi(real.length, 'Terealisasi', 'hijau', pct + '% dari yang berpemenang') + kpi(st['Checklist BPJSTK'] || 0, 'Checklist BPJSTK', 'hijau') + kpi(st['Ditunda'] || 0, 'Ditunda', 'oranye') + kpi(st['Dibatalkan'] || 0, 'Dibatalkan', 'merah') + '</div>' +
+    '<div class="kartu" style="margin-top:12px"><b>Realisasi dari paket berpemenang</b><div class="bar" style="margin-top:8px"><i style="width:' + pct + '%"></i></div><div class="muted" style="margin-top:4px">' + real.length + ' dari ' + berp.length + ' paket</div></div>' +
+    '<h3>Status kepesertaan CV pemenang</h3><div class="grid">' + STATUS_CV.map(function (s) { return kpi(cvSt[s] || 0, s, s === 'Terdaftar aktif' ? 'hijau' : s === 'Menunggak' ? 'merah' : s === 'Nonaktif' ? '' : 'oranye'); }).join('') + '</div>' +
+    '<h3>Per satuan kerja</h3><div id="tSat"></div><h3>Proyek ditunda</h3><div id="tTunda"></div>';
+  var rowsSat = Object.keys(satker).map(function (k) { var x = satker[k]; return { Satker: k, Paket: x.n, Realisasi: x.real, Checklist: x.checklist, Ditunda: x.tunda }; }).sort(function (a, b) { return b.Paket - a.Paket; });
+  tabel($('#tSat'), rowsSat, [['Satker', 'Satuan kerja'], ['Paket', 'Paket', 'num'], ['Realisasi', 'Terealisasi', 'num'], ['Checklist', 'Checklist BPJSTK', 'num'], ['Ditunda', 'Ditunda', 'num']], { id: 'sat', csv: 'rekap-per-satker' });
+  tabel($('#tTunda'), pk.filter(function (p) { return p.StatusPemkab === 'Ditunda'; }).sort(function (a, b) { return String(a.PerkiraanRealisasi).localeCompare(b.PerkiraanRealisasi); }),
+    [['NamaPaket', 'Paket'], ['Satker', 'Satker'], [function (r) { return esc(bln(r.PerkiraanRealisasi)); }, 'Perkiraan realisasi'], ['KetPemkab', 'Keterangan']], { id: 'tunda', klik: detailPaket, kosong: 'Tidak ada proyek ditunda' });
+}
+
+function pemkabProyek(el) {
+  var d = S.d;
+  el.innerHTML = '<h2>Proyek konstruksi</h2><p class="muted">Klik proyek untuk menandai: sudah berjalan, sudah checklist bukti bayar BPJSTK, selesai, ditunda (dengan perkiraan bulan realisasi), atau dibatalkan.</p><div class="filters" id="fPp"></div><div id="tPp"></div>';
+  var st = hitung(d.paket, function (p) { return p.StatusPemkab || 'Belum dimulai'; });
+  var render = function () {
+    var f = S.f.ppSt || 'Semua';
+    var rows = d.paket.filter(function (p) { return f === 'Semua' || (p.StatusPemkab || 'Belum dimulai') === f; });
+    tabel($('#tPp'), rows, [['NamaPaket', 'Paket'], ['Satker', 'Satker'], [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return esc(r.Pemenang || '-'); }, 'Pemenang'], [function (r) { return chip(r.StatusCV); }, 'Status CV'],
+      [function (r) { return chip(r.StatusPemkab || 'Belum dimulai') + (r.PerkiraanRealisasi ? '<br><span class="muted">perkiraan ' + esc(bln(r.PerkiraanRealisasi)) + '</span>' : ''); }, 'Status proyek']],
+      { id: 'pp', klik: detailPaket, csv: 'proyek-konstruksi', csvKolom: [['Satker', 'Satker'], ['NamaPaket', 'Nama paket'], ['Pagu', 'Pagu'], ['NilaiKontrak', 'Nilai kontrak'], ['Pemenang', 'Pemenang'], ['StatusCV', 'Status CV'], ['StatusPemkab', 'Status proyek'], ['PerkiraanRealisasi', 'Perkiraan realisasi'], ['KetPemkab', 'Keterangan']] });
+  };
+  filterChips($('#fPp'), 'ppSt', [['Semua', d.paket.length]].concat(d.info.statusPemkab.map(function (s) { return [s, st[s] || 0]; })), render);
+  render();
+}
+
+function pemkabCv(el) {
+  var d = S.d;
+  el.innerHTML = '<h2>Status kepesertaan CV/PT pemenang</h2><p class="muted">Hanya status yang ditampilkan. Untuk rincian, hubungi BPJS Ketenagakerjaan KC Pamekasan.</p><div id="tPc"></div>';
+  tabel($('#tPc'), d.cv, [['Nama', 'CV/PT'], ['NPP', 'NPP'], [function (r) { return chip(r.Status); }, 'Status'], ['JumlahPaket', 'Paket', 'num']], { id: 'pc', csv: 'status-cv', csvKolom: [['Nama', 'CV/PT'], ['NPP', 'NPP'], ['Status', 'Status'], ['JumlahPaket', 'Jumlah paket']] });
+}
+
+/* ============================================================
+   JAKON (admin / pelaksana / direktur)
+   ============================================================ */
+function tampilJakon() {
+  var perlu = S.d.pengajuan.filter(function (p) { return p.Status === 'Perlu perbaikan' || p.Status === 'Draf'; }).length;
+  kerangka([['home', 'Beranda', jakonBeranda], ['ajukan', 'Ajukan', jakonAjukan], ['riwayat', 'Pengajuan saya', jakonRiwayat, perlu || '']]);
+}
+
+function jakonBeranda(el) {
+  var d = S.d;
+  el.innerHTML = '<h2>Halo, ' + esc(d.me.nama) + '</h2>' +
+    (d.cv.length ? '' : '<div class="info kuning">Akun Anda belum terhubung ke CV/PT mana pun. Bila perusahaan belum terdaftar, ajukan <b>Pendaftaran</b>. Bila sudah terdaftar, minta petugas KC menghubungkannya.</div>') +
+    d.cv.map(function (c) {
+      var saran = c.Status === 'Menunggak' ? 'Ada tunggakan iuran. Bila sedang tidak ada proyek, ajukan penonaktifan agar tagihan tidak terus berjalan.' : c.Status === 'Nonaktif' ? 'Kepesertaan nonaktif. Bila mendapat proyek baru, daftarkan proyeknya agar perlindungan aktif kembali.' : c.Status === 'Terdaftar aktif' ? 'Kepesertaan tertib. Terima kasih!' : 'Data perusahaan belum ditemukan di sistem kami. Hubungi petugas KC.';
+      return '<div class="kartu"><div class="baris"><b style="font-size:16px">' + esc(c.Nama) + '</b>' + chip(c.Status) + '</div><div class="muted">NPP ' + esc(c.NPP || '-') + (c.Status === 'Menunggak' && c.BulanTunggak ? ' · menunggak ' + esc(c.BulanTunggak) + ' bulan' : '') + '</div><p style="margin:8px 0 0">' + esc(saran) + '</p></div>';
+    }).join('') +
+    '<h3>Proyek perusahaan Anda</h3><div id="tJp"></div>' +
+    '<div class="info">Tidak sedang ada proyek? Ajukan <b>penonaktifan</b> lewat menu Ajukan, cukup satu surat. Begitu dapat proyek lagi, <b>daftarkan proyeknya</b> (SPK, SPMK, KTP pekerja) dan kepesertaan aktif kembali.</div>' +
+    (d.info.wa ? '<a class="btn wa" target="_blank" href="' + esc(waLink(d.info.wa, 'Halo pembina, saya ' + d.me.nama + ' (SIGAP Jakon). ')) + '">Tanya pembina lewat WA</a>' : '');
+  tabel($('#tJp'), d.paket, [['NamaPaket', 'Paket'], ['Satker', 'Pemilik'], [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return r.NoJakon ? chip('Terdaftar Jakon') : '<a href="#" data-daftar="' + esc(r.ID) + '" onclick="event.preventDefault();formAjuan(\'Daftarkan Proyek\')">' + chip('Belum didaftarkan Jakon') + '</a>'; }, 'Jakon']], { id: 'jp', kosong: 'Belum ada proyek tercatat atas nama perusahaan Anda' });
+}
+
+/* ============================================================
+   PENGAJUAN — bersama (label & pekerja)
+   ============================================================ */
+var LABEL_BERKAS = { formulir: 'Formulir 1 bertanda tangan & stempel', nib: 'NIB', npwp: 'NPWP perusahaan', surat: 'Surat penonaktifan bertanda tangan', ba: 'Berita acara bertanda tangan', spk: 'SPK / kontrak', spmk: 'SPMK', lampiran: 'Lampiran', ktp_gabungan: 'KTP (gabungan)' };
+var LABEL_DATA = { JENIS_DAFTAR: 'Jenis', NAMA_PK: 'Nama pemberi kerja', ALAMAT_PK: 'Alamat', KODE_POS: 'Kode pos', KAB_KOTA: 'Kab/Kota', PROVINSI: 'Provinsi', TELP_PK: 'Telepon/HP', EMAIL_PK: 'Email', NAMA_PEMILIK: 'Nama pemilik', KEPEMILIKAN: 'Kepemilikan', KEPEMILIKAN_LAIN: 'Kepemilikan lain', ASET: 'Jumlah aset', OMSET: 'Omset per tahun', NIB: 'NIB', JENIS_USAHA: 'Jenis usaha utama', NPWP: 'NPWP', STATUS_PK: 'Status pemberi kerja', PUSAT_NPP: 'NPP kantor pusat', PUSAT_NAMA: 'Nama kantor pusat', PUSAT_ALAMAT: 'Alamat kantor pusat', PUSAT_TELP: 'Telepon kantor pusat', NAMA_KONTAK: 'Kontak person', JABATAN_KONTAK: 'Jabatan kontak', HP_KONTAK: 'HP kontak', EMAIL_KONTAK: 'Email kontak', NAMA_DIREKTUR: 'Pimpinan', JABATAN_PIMPINAN: 'Jabatan pimpinan', HP_DIREKTUR: 'HP pimpinan', PROGRAM: 'Program', PESERTA_SEJAK: 'Peserta sejak', BULAN: 'Bulan nonaktif', ALASAN: 'Keterangan', NAMA_PENANDATANGAN: 'Penandatangan', JABATAN: 'Jabatan', TGL_SURAT: 'Tanggal surat', PAKET_ID: 'ID paket', NAMA_PROYEK: 'Nama proyek', PEMILIK_PROYEK: 'Pemilik proyek / satker', NILAI: 'Nilai kontrak', TGL_SPMK: 'Tanggal SPMK', LAMA_KERJA: 'Lama pekerjaan', LOKASI: 'Lokasi', SUMBER_DANA: 'Sumber dana', PEJABAT_DITEMUI: 'Pejabat ditemui', HASIL: 'Hasil', JUMLAH_TK: 'Jumlah TK', NO_JAKON: 'No. sertifikat Jakon', MAKSUD: 'Maksud kunjungan', LAIN_LAIN: 'Lain-lain' };
+var F1_KEPEMILIKAN = ['Swasta Nasional', 'BUMN', 'Joint Venture', 'Koperasi', 'Sekolah, Perguruan Tinggi, Kursus', 'Swasta Asing', 'BUMD', 'Perseorangan', 'Yayasan', 'Pemerintah', 'Lain-lain'];
+var F1_ASET = ['< Rp 1 M', 'Rp 1–5 M', 'Rp 5–10 M', '> Rp 10 M'];
+var F1_STATUS = ['Pusat', 'Daerah', 'Cabang', 'Anak Perusahaan', 'Cabang Anak Perusahaan'];
+var JUDUL_JENIS = { 'Pendaftaran': 'Daftar perusahaan (Formulir 1)', 'Daftarkan Proyek': 'Daftarkan proyek', 'Lapor Proyek': 'Daftarkan proyek', 'Penonaktifan': 'Penonaktifan kepesertaan', 'Berita Acara': 'Berita acara kunjungan' };
+
+function perluKtp(jenis) { return jenis === 'Pendaftaran' || jenis === 'Daftarkan Proyek' || jenis === 'Lapor Proyek'; }
+function slotJenis(jenis) {
+  return { 'Pendaftaran': [['formulir', 1], ['nib', 1], ['npwp', 1]], 'Daftarkan Proyek': [['spk', 1], ['spmk', 1]], 'Lapor Proyek': [['spk', 1], ['spmk', 1]], 'Penonaktifan': [['surat', 1], ['lampiran', 0]], 'Berita Acara': [['ba', 1]] }[jenis] || [];
+}
+function inp(k, label, val, opt) {
+  opt = opt || {};
+  var req = opt.req ? ' required' : '';
+  var hint = opt.hint ? ' <small>' + esc(opt.hint) + '</small>' : '';
+  if (opt.pilih) return '<label class="f">' + esc(label) + (opt.req ? ' *' : '') + hint + '</label><select data-k="' + k + '"' + req + '>' + opt.pilih.map(function (o) { return '<option ' + (o === val ? 'selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+  if (opt.area) return '<label class="f">' + esc(label) + hint + '</label><textarea data-k="' + k + '">' + esc(val || '') + '</textarea>';
+  return '<label class="f">' + esc(label) + (opt.req ? ' *' : '') + hint + '</label><input type="' + (opt.type || 'text') + '" data-k="' + k + '" value="' + esc(val || '') + '"' + req + (opt.num ? ' inputmode="numeric"' : '') + '>';
+}
+
+/** Editor daftar pekerja (nama, NIK opsional, HP). */
+function editorPekerja(w, kar, hpWajib) {
+  var render = function () {
+    w.innerHTML = kar.map(function (k, i) {
+      return '<div class="kartu" style="padding:10px;margin-bottom:8px"><div class="baris"><b>Pekerja ' + (i + 1) + '</b><span class="sp"></span>' + (kar.length > 2 ? '<button type="button" class="btn kecil bahaya" data-hapus="' + i + '">Hapus</button>' : '') + '</div>' +
+        '<div class="dua"><div><label class="f">Nama sesuai KTP *</label><input type="text" data-kn="' + i + '" value="' + esc(k.nama || '') + '"></div><div><label class="f">Nomor HP' + (hpWajib ? ' *' : ' <small>(opsional)</small>') + '</label><input type="tel" data-kh="' + i + '" value="' + esc(k.hp || '') + '"></div></div>' +
+        '<label class="f">NIK <small>(opsional)</small></label><input type="text" inputmode="numeric" data-kk="' + i + '" value="' + esc(k.nik || '') + '"></div>';
+    }).join('') + '<button type="button" class="btn kecil" data-tambah>+ Tambah pekerja</button><div class="muted" style="margin-top:6px">Minimal ' + (S.d.info.minKtp || 2) + ' pekerja. KTP tiap orang diunggah di langkah berikutnya (foto atau PDF).</div>';
+    $$('[data-kn]', w).forEach(function (x) { x.oninput = function () { kar[+x.dataset.kn].nama = x.value; }; });
+    $$('[data-kh]', w).forEach(function (x) { x.oninput = function () { kar[+x.dataset.kh].hp = x.value; }; });
+    $$('[data-kk]', w).forEach(function (x) { x.oninput = function () { kar[+x.dataset.kk].nik = x.value; }; });
+    $$('[data-hapus]', w).forEach(function (x) { x.onclick = function () { kar.splice(+x.dataset.hapus, 1); render(); }; });
+    $('[data-tambah]', w).onclick = function () { kar.push({}); render(); };
+  };
+  while (kar.length < (S.d.info.minKtp || 2)) kar.push({});
+  render();
+  return function () {
+    var isi = kar.filter(function (k) { return String(k.nama || '').trim(); });
+    var min = S.d.info.minKtp || 2;
+    if (isi.length < min) return { err: 'minimal ' + min + ' pekerja' };
+    if (hpWajib && isi.some(function (k) { return !k.hp; })) return { err: 'nomor HP tiap pekerja' };
+    return { list: isi };
+  };
+}
+
+function ambilData(bg) {
+  var data = {}, kurang = [];
+  $$('[data-k]', bg).forEach(function (i) {
+    data[i.dataset.k] = i.value.trim();
+    var langkah = i.closest('[data-step]');
+    if (i.required && !i.value.trim()) kurang.push((i.previousElementSibling ? i.previousElementSibling.textContent.replace(' *', '') : i.dataset.k) + (langkah ? ' (bagian ' + langkah.dataset.step + ')' : ''));
+  });
+  return { data: data, kurang: kurang };
+}
+
+/* ============================================================
+   JAKON (admin / pelaksana / direktur)
+   ============================================================ */
+function jakonAjukan(el) {
+  var pil = [
+    ['Pendaftaran', 'Daftar perusahaan', 'Isi Formulir 1 di sini → unduh → tanda tangan & stempel → unggah bersama NIB, NPWP, dan KTP tiap pekerja.', '3 PDF + KTP'],
+    ['Daftarkan Proyek', 'Daftarkan proyek', 'Dapat proyek? Unggah SPK, SPMK, dan KTP tiap pekerja (min. 2). Pembina akan mendaftarkannya ke program Jasa Konstruksi.', '2 PDF + KTP'],
+    ['Penonaktifan', 'Penonaktifan', 'Tidak ada proyek? Surat sudah terisi otomatis, tinggal tanda tangan & unggah.', '1 PDF'],
+    ['Berita Acara', 'Berita acara', 'Unduh berita acara terisi, tanda tangan & stempel, lalu unggah.', '1 PDF']
+  ];
+  el.innerHTML = '<h2>Ajukan ke pembina</h2><p class="muted" style="margin-top:-6px">Setiap berkas diunggah tersendiri. Draf tersimpan, bisa dilanjutkan dari menu Pengajuan saya.</p>' +
+    pil.map(function (p) { return '<div class="item" data-j="' + p[0] + '"><div class="baris"><span class="t">' + esc(p[1]) + '</span><span class="sp"></span><span class="chip">' + esc(p[3]) + '</span></div><div class="s">' + esc(p[2]) + '</div></div>'; }).join('');
+  $$('.item', el).forEach(function (it) { it.onclick = function () { formAjuan(it.dataset.j); }; });
+}
+
+function opsiCv() {
+  return S.d.cv.map(function (c) { return '<option value="' + esc(c.ID) + '">' + esc(c.Nama) + (c.NPP ? ' · ' + esc(c.NPP) : '') + '</option>'; }).join('');
+}
+
+function formAjuan(jenis) {
+  var d = S.d;
+  if (jenis !== 'Pendaftaran' && !d.cv.length) return toast('Akun belum terhubung ke perusahaan. Hubungi petugas KC.', true);
+  if (jenis === 'Pendaftaran') return formFormulir1();
+  var html = '<h3>' + esc(JUDUL_JENIS[jenis]) + '</h3><div class="muted">Langkah 1 dari 2: isi data</div>' +
+    '<label class="f">Perusahaan</label><select id="aCv">' + opsiCv() + '</select>';
+  if (jenis === 'Daftarkan Proyek') {
+    html += '<label class="f">Paket <small>(dari data INAPROC, atau isi manual)</small></label><select id="aPaket"></select>' +
+      inp('NAMA_PROYEK', 'Nama proyek / paket', '', { req: 1 }) +
+      '<div class="dua"><div>' + inp('PEMILIK_PROYEK', 'Pemilik proyek / satker', '') + '</div><div>' + inp('NILAI', 'Nilai kontrak (Rp)', '', { num: 1 }) + '</div></div>' +
+      '<div class="dua"><div>' + inp('TGL_SPMK', 'Tanggal SPMK', '', { type: 'date' }) + '</div><div>' + inp('LAMA_KERJA', 'Lama pekerjaan', '', { hint: 'contoh: 60 hari' }) + '</div></div>' +
+      '<div class="dua"><div>' + inp('LOKASI', 'Lokasi', '') + '</div><div>' + inp('SUMBER_DANA', 'Sumber dana', '', { hint: 'APBD, dana desa, swasta…' }) + '</div></div>' +
+      '<h3>Pekerja proyek</h3><div id="kar"></div>';
+  } else if (jenis === 'Penonaktifan') {
+    html += '<div class="dua"><div>' + inp('BULAN', 'Nonaktif mulai bulan', thisMonth(), { type: 'month', req: 1 }) + '</div><div>' + inp('TGL_SURAT', 'Tanggal surat', today(), { type: 'date' }) + '</div></div>' +
+      inp('ALASAN', 'Keterangan', 'Tidak ada pekerjaan/proyek konstruksi') +
+      '<div class="dua"><div>' + inp('NAMA_PENANDATANGAN', 'Nama penandatangan', '', { req: 1 }) + '</div><div>' + inp('JABATAN', 'Jabatan', 'Direktur') + '</div></div>';
+  } else {
+    var m = ['Penyuluhan/Sosialisasi', 'Penyampaian data Rekonsiliasi', 'Penyerahan sertifikat / Kartu Peserta', 'Tindak Lanjut PDS (TK/Upah/Prog)', 'Tindak Lanjut Piutang Iuran', 'Kerjasama Aparat / Instansi', 'Konfirmasi Data Kepesertaan', 'Pengecekan data Klaim', 'Penyerahan Penetapan Iuran/Jaminan', 'Lain-lain'];
+    html += '<div class="dua"><div>' + inp('TGL_SURAT', 'Tanggal kunjungan', today(), { type: 'date' }) + '</div><div>' + inp('JUMLAH_TK', 'Jumlah karyawan', '', { type: 'number' }) + '</div></div>' +
+      '<div class="dua"><div>' + inp('NAMA_DIREKTUR', 'Nama pimpinan', '') + '</div><div>' + inp('PEJABAT_DITEMUI', 'Pejabat yang ditemui', '', { req: 1 }) + '</div></div>' +
+      '<label class="f">Maksud kunjungan</label><div class="dua">' + m.map(function (x, i) { return '<label style="display:block;padding:2px 0"><input type="checkbox" class="mk" value="' + (i + 1) + '" ' + (i === 6 || i === 4 ? 'checked' : '') + '> ' + esc(x) + '</label>'; }).join('') + '</div>' +
+      inp('LAIN_LAIN', 'Lain-lain', '', { hint: '(bila dicentang)' }) + inp('HASIL', 'Hasil kunjungan', 'Konfirmasi status kepesertaan dan rencana pekerjaan konstruksi perusahaan.', { area: 1 });
+  }
+  html += '<div class="aksi"><button class="btn" data-tutup>Batal</button><button class="btn utama" id="aLanjut">Simpan & lanjut</button></div>';
+  modal(html, function (bg) {
+    var ambilKar = $('#kar', bg) ? editorPekerja($('#kar', bg), [], false) : null;
+    var isiPaket = function () {
+      var sel = $('#aPaket', bg); if (!sel) return;
+      var cvId = $('#aCv', bg).value;
+      var list = d.paket.filter(function (p) { return p.CV_ID === cvId && p.Pemenang; });
+      sel.innerHTML = '<option value="">— isi manual —</option>' + list.map(function (p) { return '<option value="' + esc(p.ID) + '">' + esc(p.NamaPaket) + ' · ' + esc(p.Satker || '') + ' · ' + jt(p.NilaiKontrak || p.Pagu) + '</option>'; }).join('');
+      if (list.length) { sel.value = list[0].ID; sel.onchange(); }
+    };
+    if ($('#aPaket', bg)) {
+      $('#aPaket', bg).onchange = function () {
+        var p = d.paket.filter(function (x) { return x.ID === $('#aPaket', bg).value; })[0]; if (!p) return;
+        $('[data-k=NAMA_PROYEK]', bg).value = p.NamaPaket || ''; $('[data-k=PEMILIK_PROYEK]', bg).value = p.Satker || ''; $('[data-k=NILAI]', bg).value = p.NilaiKontrak || p.Pagu || '';
+      };
+      $('#aCv', bg).onchange = isiPaket; isiPaket();
+    }
+    $('#aLanjut', bg).onclick = function () {
+      var r = ambilData(bg), data = r.data, kurang = r.kurang;
+      if (ambilKar) { var k = ambilKar(); if (k.err) kurang.push(k.err); else data.KARYAWAN = k.list; }
+      if ($('#aPaket', bg)) data.PAKET_ID = $('#aPaket', bg).value;
+      if (jenis === 'Berita Acara') data.MAKSUD = $$('.mk:checked', bg).map(function (c) { return +c.value; });
+      if (kurang.length) return toast('Lengkapi: ' + kurang.join(', '), true);
+      kirimDraf(this, bg, jenis, $('#aCv', bg).value, data);
+    };
+  });
+}
+
+function kirimDraf(btn, bg, jenis, cvId, data) {
+  busy(btn, call('buatPengajuan', { jenis: jenis, cvId: cvId, data: data })).then(function (r) {
+    bg.remove();
+    S.draf = S.draf || {}; S.draf[r.id] = { data: data, cvId: cvId };
+    return muatUlang(true).then(function () { var p = S.d.pengajuan.filter(function (x) { return x.ID === r.id; })[0]; if (p) langkahBerkas(p); });
+  }).catch(function () { });
+}
+
+/** Formulir 1 dalam 4 bagian, mengikuti formulir resmi. */
+function formFormulir1() {
+  var me = S.d.me;
+  var html = '<h3>Formulir 1 · Pendaftaran Pemberi Kerja</h3><div class="steps" id="fStep"></div>' +
+    '<div data-step="I">' +
+      inp('JENIS_DAFTAR', 'Jenis', 'Pendaftaran baru', { pilih: ['Pendaftaran baru', 'Perubahan data'] }) +
+      inp('NAMA_PK', 'Nama pemberi kerja', '', { req: 1, hint: 'contoh: CV Karya Abadi' }) + inp('ALAMAT_PK', 'Alamat', '', { req: 1 }) +
+      '<div class="tiga"><div>' + inp('KODE_POS', 'Kode pos', '', { req: 1, num: 1 }) + '</div><div>' + inp('KAB_KOTA', 'Kab/Kota', 'Pamekasan', { req: 1 }) + '</div><div>' + inp('PROVINSI', 'Provinsi', 'Jawa Timur', { req: 1 }) + '</div></div>' +
+      '<div class="dua"><div>' + inp('TELP_PK', 'No. telepon/HP', '', { req: 1, type: 'tel' }) + '</div><div>' + inp('EMAIL_PK', 'Alamat email', '', { type: 'email' }) + '</div></div>' +
+      inp('NAMA_PEMILIK', 'Nama pemilik', '') +
+      '<div class="dua"><div>' + inp('KEPEMILIKAN', 'Kepemilikan', 'Swasta Nasional', { pilih: F1_KEPEMILIKAN, req: 1 }) + '</div><div>' + inp('KEPEMILIKAN_LAIN', 'Bila lain-lain, sebutkan', '') + '</div></div>' +
+      '<div class="dua"><div>' + inp('ASET', 'Jumlah aset', '< Rp 1 M', { pilih: F1_ASET, req: 1 }) + '</div><div>' + inp('OMSET', 'Omset per tahun (Rp)', '', { num: 1 }) + '</div></div>' +
+      '<div class="dua"><div>' + inp('NIB', 'NIB / nomor izin usaha', '', { req: 1 }) + '</div><div>' + inp('NPWP', 'NPWP pemberi kerja', '', { req: 1 }) + '</div></div>' +
+      inp('JENIS_USAHA', 'Jenis usaha utama', 'Jasa Konstruksi', { hint: 'sesuai NIB, mis. Konstruksi Gedung (KBLI 41011)' }) +
+      inp('STATUS_PK', 'Status pemberi kerja', 'Pusat', { pilih: F1_STATUS, req: 1 }) +
+    '</div><div data-step="II" class="hidden"><div class="info">Bagian II hanya diisi bila perusahaan berstatus <b>cabang</b>. Bila Pusat, lewati saja.</div>' +
+      inp('PUSAT_NPP', 'NPP kantor pusat', '') + inp('PUSAT_NAMA', 'Nama kantor pusat', '') + inp('PUSAT_ALAMAT', 'Alamat kantor pusat', '') + inp('PUSAT_TELP', 'Telepon kantor pusat', '') +
+    '</div><div data-step="III" class="hidden">' +
+      '<div class="dua"><div>' + inp('NAMA_KONTAK', 'Nama kontak person', me.nama, { req: 1 }) + '</div><div>' + inp('JABATAN_KONTAK', 'Jabatan', 'Admin', { req: 1 }) + '</div></div>' +
+      '<div class="dua"><div>' + inp('HP_KONTAK', 'No. HP / WhatsApp', '', { req: 1, type: 'tel' }) + '</div><div>' + inp('EMAIL_KONTAK', 'Email', '', { type: 'email' }) + '</div></div>' +
+      '<h3>Pimpinan penanda tangan</h3><div class="dua"><div>' + inp('NAMA_DIREKTUR', 'Nama pimpinan', '', { req: 1 }) + '</div><div>' + inp('JABATAN_PIMPINAN', 'Jabatan', 'Direktur') + '</div></div>' + inp('HP_DIREKTUR', 'HP pimpinan', '', { type: 'tel' }) +
+    '</div><div data-step="IV" class="hidden">' +
+      '<label class="f">Program yang diikuti *</label><div class="baris">' + [['JKK', 'Kecelakaan Kerja'], ['JHT', 'Hari Tua'], ['JKM', 'Kematian'], ['JP', 'Pensiun']].map(function (p) { return '<label style="padding:4px 10px 4px 0"><input type="checkbox" class="prog" value="' + p[0] + '" checked> ' + p[1] + '</label>'; }).join('') + '</div>' +
+      '<div class="dua"><div>' + inp('PESERTA_SEJAK', 'Menjadi peserta sejak', thisMonth(), { type: 'month', req: 1 }) + '</div><div>' + inp('TGL_SURAT', 'Tanggal formulir', today(), { type: 'date' }) + '</div></div>' +
+      '<h3>Pekerja yang didaftarkan</h3><div id="kar"></div>' +
+    '</div><div class="aksi"><button class="btn" id="fKembali">Kembali</button><span class="sp"></span><button class="btn" data-tutup>Batal</button><button class="btn utama" id="fLanjut">Lanjut</button></div>';
+  modal(html, function (bg) {
+    var langkah = ['I', 'II', 'III', 'IV'], nama = { I: 'Identitas', II: 'Kantor pusat', III: 'Kontak', IV: 'Program & pekerja' }, ke = 0;
+    var ambilKar = editorPekerja($('#kar', bg), [], true);
+    var tampil = function () {
+      $$('[data-step]', bg).forEach(function (s) { s.classList.toggle('hidden', s.dataset.step !== langkah[ke]); });
+      $('#fStep', bg).innerHTML = langkah.map(function (l, i) { return '<div class="' + (i === ke ? 'on' : (i < ke ? 'done' : '')) + '"><i></i>' + l + ' ' + nama[l] + '</div>'; }).join('');
+      $('#fKembali', bg).style.visibility = ke ? 'visible' : 'hidden';
+      $('#fLanjut', bg).textContent = ke === 3 ? 'Simpan & lanjut unggah' : 'Lanjut: ' + langkah[ke + 1] + ' ' + nama[langkah[ke + 1]];
+      bg.scrollTop = 0;
+    };
+    tampil();
+    $('#fKembali', bg).onclick = function () { if (ke) { ke--; tampil(); } };
+    $('#fLanjut', bg).onclick = function () {
+      var kurangIni = $$('[data-step="' + langkah[ke] + '"] [data-k]', bg).filter(function (i) { return i.required && !i.value.trim(); });
+      if (kurangIni.length) return toast('Lengkapi: ' + kurangIni.map(function (i) { return i.previousElementSibling.textContent.replace(' *', ''); }).join(', '), true);
+      if (ke < 3) { ke++; return tampil(); }
+      var r = ambilData(bg), data = r.data;
+      data.PROGRAM = $$('.prog:checked', bg).map(function (c) { return c.value; });
+      if (!data.PROGRAM.length) return toast('Pilih minimal satu program', true);
+      var k = ambilKar(); if (k.err) return toast('Lengkapi: ' + k.err, true);
+      data.KARYAWAN = k.list; data.JUMLAH_TK = String(k.list.length);
+      kirimDraf(this, bg, 'Pendaftaran', '', data);
+    };
+  });
+}
+
+/** Langkah 2: unduh dokumen terisi, unggah tiap berkas, kirim. */
+function langkahBerkas(p) {
+  var jenis = p.Jenis, berkas = p.Berkas || {}, data = p.Data || {}, cek = p.Cek || {};
+  var draf = (S.draf && S.draf[p.ID]) || { data: data, cvId: p.CV_ID };
+  var dok = { Pendaftaran: 'formulir', Penonaktifan: 'nonaktif', 'Berita Acara': 'ba' }[jenis];
+  var namaDok = { formulir: 'Formulir 1', nonaktif: 'surat penonaktifan', ba: 'berita acara' }[dok];
+  var kar = p.Karyawan || [];
+  var bisaUbah = ['Draf', 'Perlu perbaikan'].indexOf(p.Status) >= 0;
+  var tanda = function (k) {
+    if (cek[k] === 'ganti') return '<span class="chip menunggak">Perlu diganti</span>';
+    if (berkas[k]) return '<a class="ok-ic" target="_blank" href="' + esc(berkas[k]) + '">✓ terunggah</a>';
+    return '';
+  };
+  var baris = function (k, label, wajib, terima) {
+    return '<div class="berkas' + (cek[k] === 'ganti' ? ' ganti' : '') + '"><div class="nm">' + esc(label) + (wajib ? '' : ' <span class="muted">(opsional)</span>') + '</div><span data-ok="' + k + '">' + tanda(k) + '</span>' +
+      (bisaUbah ? '<label class="btn kecil pilih">' + (berkas[k] ? 'Ganti' : 'Pilih berkas') + '<input type="file" accept="' + (terima || 'application/pdf,image/*') + '" data-slot="' + k + '" hidden></label>' : '') + '</div>';
+  };
+  var no = 1;
+  var html = '<h3>' + esc(JUDUL_JENIS[jenis] || jenis) + ' · ' + esc(p.NamaPK) + '</h3><div class="baris">' + chip(p.Status) + '<span class="muted">' + esc(p.ID) + '</span></div>' +
+    (p.CatatanOwner ? '<div class="info kuning"><b>Catatan pembina:</b> ' + esc(p.CatatanOwner) + '</div>' : '') +
+    (dok ? '<div class="step"><div class="no">' + (no++) + '</div><div><b>Unduh ' + namaDok + ' yang sudah terisi</b><div class="muted">Cetak, tanda tangan basah & stempel, lalu pindai atau foto dengan jelas.</div><div class="baris" style="margin-top:6px"><button class="btn" id="dPdf">Unduh PDF</button><button class="btn" id="dDocx">Unduh Word</button></div></div></div>' : '') +
+    '<div class="step"><div class="no">' + (no++) + '</div><div style="flex:1"><b>Unggah berkas</b><div class="muted">PDF, JPG, atau PNG, maks. 5 MB per berkas. Foto otomatis diperkecil.</div>' +
+    slotJenis(jenis).map(function (s) { return baris(s[0], LABEL_BERKAS[s[0]] || s[0], s[1]); }).join('') +
+    (perluKtp(jenis) ? '<div style="margin-top:10px"><b>KTP pekerja</b> <span class="muted">— satu berkas per orang (foto atau PDF), minimal ' + (S.d.info.minKtp || 2) + ' orang</span></div>' +
+      kar.map(function (k) { return baris('ktp_' + k.No, k.No + '. ' + k.Nama + (k.NoHP ? ' (' + k.NoHP + ')' : ''), 1, 'image/*,application/pdf'); }).join('') +
+      (bisaUbah ? '<div id="tambahP" style="margin-top:8px"><button class="btn kecil" id="bTambahP">+ Tambah pekerja</button></div>' : '') : '') +
+    '</div></div>' +
+    '<div class="step"><div class="no">' + (no++) + '</div><div><b>Kirim ke pembina</b><div class="muted">Pembina memeriksa tiap berkas. Status & catatan bisa dipantau di menu Pengajuan saya.</div></div></div>' +
+    '<div class="aksi"><button class="btn" data-tutup>Tutup (lanjut nanti)</button>' + (bisaUbah ? '<button class="btn utama" id="bKirim">Kirim ke pembina</button>' : '') + '</div>';
+  modal(html, function (bg) {
+    var unduh = function (fmt, btn) {
+      var dd = JSON.parse(JSON.stringify(draf.data || {}));
+      dd.ID_PENGAJUAN = p.ID;
+      if (jenis === 'Pendaftaran') dd.KARYAWAN = kar.map(function (k) { return { nama: k.Nama, hp: k.NoHP, nik: k.NIK }; });
+      busy(btn, call('buatDokumen', { jenis: dok, cvId: draf.cvId || p.CV_ID, data: dd, format: fmt })).then(unduhBase64).catch(function () { });
+    };
+    if ($('#dPdf', bg)) { $('#dPdf', bg).onclick = function () { unduh('pdf', this); }; $('#dDocx', bg).onclick = function () { unduh('docx', this); }; }
+    $$('[data-slot]', bg).forEach(function (inpF) {
+      inpF.onchange = function () {
+        var f = inpF.files[0]; if (!f) return; var k = inpF.dataset.slot, t = $('[data-ok="' + k + '"]', bg);
+        t.innerHTML = '<span class="muted">mengunggah…</span>';
+        bacaBerkas(f).then(function (b) { return call('unggahBerkas', { id: p.ID, slot: k, base64: b.base64, mime: b.mime }); })
+          .then(function (r) { berkas[k] = r.url; if (cek[k] === 'ganti') cek[k] = 'baru'; t.innerHTML = tanda(k); inpF.closest('.berkas').classList.remove('ganti'); inpF.value = ''; })
+          .catch(function (e) { t.innerHTML = tanda(k); toast(e.message, true); });
+      };
+    });
+    if ($('#bTambahP', bg)) $('#bTambahP', bg).onclick = function () {
+      $('#tambahP', bg).innerHTML = '<div class="kartu" style="padding:10px"><div class="dua"><div><label class="f">Nama sesuai KTP</label><input type="text" id="tpN"></div><div><label class="f">Nomor HP' + (jenis === 'Pendaftaran' ? '' : ' <small>(opsional)</small>') + '</label><input type="tel" id="tpH"></div></div><div class="aksi"><button class="btn utama kecil" id="tpS">Tambahkan</button></div></div>';
+      $('#tpS', bg).onclick = function () {
+        busy(this, call('tambahPekerja', { id: p.ID, nama: $('#tpN', bg).value, hp: $('#tpH', bg).value })).then(function () {
+          bg.remove(); return muatUlang(true).then(function () { var q = S.d.pengajuan.filter(function (x) { return x.ID === p.ID; })[0]; if (q) langkahBerkas(q); });
+        }).catch(function () { });
+      };
+    };
+    if ($('#bKirim', bg)) $('#bKirim', bg).onclick = function () {
+      busy(this, call('kirimPengajuan', { id: p.ID })).then(function () { bg.remove(); toast('Pengajuan terkirim. Terima kasih!'); return muatUlang(true).then(function () { S.go('riwayat'); }); }).catch(function () { });
+    };
+  });
+}
+
+function jakonRiwayat(el) {
+  var d = S.d;
+  el.innerHTML = '<h2>Pengajuan saya</h2>' + (d.pengajuan.length ? d.pengajuan.map(function (p, i) {
+    var ganti = Object.keys(p.Cek || {}).filter(function (k) { return p.Cek[k] === 'ganti'; });
+    return '<div class="item" data-i="' + i + '"><div class="baris"><span class="t">' + esc(JUDUL_JENIS[p.Jenis] || p.Jenis) + ' · ' + esc(p.NamaPK) + '</span><span class="sp"></span>' + chip(p.Status) + '</div><div class="s">' + esc(p.ID) + ' · diperbarui ' + esc(p.Diperbarui) + '</div>' +
+      (ganti.length ? '<div class="s" style="color:var(--merah)">Perlu diganti: ' + esc(ganti.map(function (k) { var m = k.match(/^ktp_(\d+)$/); return m ? 'KTP pekerja ' + m[1] : (LABEL_BERKAS[k] || k); }).join(', ')) + '</div>' : '') +
+      (p.CatatanOwner ? '<div class="s" style="color:#92400E">Catatan pembina: ' + esc(p.CatatanOwner) + '</div>' : '') + (p.Status === 'Draf' || p.Status === 'Perlu perbaikan' ? '<div class="s"><b>Ketuk untuk melengkapi & mengirim</b></div>' : '') + '</div>';
+  }).join('') : '<div class="kosong">Belum ada pengajuan</div>');
+  $$('.item', el).forEach(function (it) { it.onclick = function () { langkahBerkas(d.pengajuan[+it.dataset.i]); }; });
+}
+
+/* ============================================================
+   OWNER — verifikasi pengajuan per berkas
+   ============================================================ */
+function detailPengajuan(p) {
+  var u = S.d.pengguna.filter(function (x) { return x.ID === p.UserID; })[0] || {};
+  var data = p.Data || {}, berkas = p.Berkas || {}, cek = JSON.parse(JSON.stringify(p.Cek || {}));
+  var kar = p.Karyawan || [];
+  var proyek = p.Jenis === 'Daftarkan Proyek' || p.Jenis === 'Lapor Proyek';
+  // cek otomatis untuk proyek
+  var auto = '';
+  if (proyek && data.PAKET_ID) {
+    var pk = S.d.paket.filter(function (x) { return x.ID === data.PAKET_ID; })[0];
+    if (pk) {
+      var namaCocok = pk.CV_ID && pk.CV_ID === p.CV_ID;
+      var nilaiCocok = Math.abs((Number(pk.NilaiKontrak) || 0) - (Number(String(data.NILAI).replace(/\D/g, '')) || 0)) < 1000;
+      auto = '<div class="info">Paket INAPROC: <b>' + esc(pk.NamaPaket) + '</b> · ' + esc(pk.Satker || '') + '<br>Pemenang ' + chip(namaCocok ? 'cocok dengan CV ini' : 'beda: ' + (pk.Pemenang || '-')) + ' Nilai ' + chip(nilaiCocok ? 'sama dengan data INAPROC' : 'beda: ' + rp(pk.NilaiKontrak)) + (pk.NoJakon ? ' ' + chip('Sudah terdaftar Jakon') : '') + '</div>';
+    }
+  }
+  var slots = slotJenis(p.Jenis).map(function (s) { return [s[0], LABEL_BERKAS[s[0]] || s[0]]; })
+    .concat(kar.map(function (k) { return ['ktp_' + k.No, 'KTP · ' + k.No + '. ' + k.Nama + (k.NIK ? ' · NIK ' + k.NIK : '') + (k.NoHP ? ' · ' + k.NoHP : '')]; }));
+  var barisCek = function (s) {
+    var k = s[0], ada = berkas[k], v = cek[k] || '';
+    return '<div class="berkas"><div class="nm">' + esc(s[1]) + '<br>' + (ada ? '<a target="_blank" href="' + esc(ada) + '">buka berkas</a>' + (v === 'baru' ? ' <span class="chip berjalan">baru diganti</span>' : '') : '<span class="muted">belum diunggah</span>') + '</div>' +
+      (ada ? '<div class="seg" data-c="' + k + '"><button type="button" data-v="ok" class="' + (v === 'ok' ? 'on ok' : '') + '">✓ Sesuai</button><button type="button" data-v="ganti" class="' + (v === 'ganti' ? 'on ganti' : '') + '">Minta ganti</button></div>' : '') + '</div>';
+  };
+  modal('<h3>' + esc(JUDUL_JENIS[p.Jenis] || p.Jenis) + ' · ' + esc(p.NamaPK) + '</h3><div class="baris">' + chip(p.Status) + '<span class="muted">' + esc(p.ID) + ' · oleh ' + esc(u.Nama || p.UserID) + ' ' + esc(u.NoHP || '') + '</span></div>' + auto +
+    '<h3>Berkas (periksa satu per satu)</h3>' + slots.map(barisCek).join('') +
+    '<div class="muted" style="margin-top:4px"><a target="_blank" href="' + esc(p.FolderURL) + '">Buka folder berkas di Drive</a></div>' +
+    '<h3>Data isian</h3><div class="tbl-wrap"><table><tbody>' + Object.keys(data).filter(function (k) { return data[k] !== ''; }).map(function (k) { return '<tr><th style="width:38%">' + esc(LABEL_DATA[k] || k) + '</th><td>' + esc(/BULAN|PESERTA_SEJAK/.test(k) ? bln(data[k]) : data[k]) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+    '<h3>Tindak lanjut</h3><label class="f">Status</label><select id="gSt">' + S.d.info.statusPengajuan.filter(function (s) { return s !== 'Draf'; }).map(function (s) { return '<option ' + (p.Status === s ? 'selected' : '') + '>' + s + '</option>'; }).join('') + '</select>' +
+    (p.Jenis === 'Pendaftaran' ? '<label class="f">NPP hasil pendaftaran <small>(wajib saat Selesai)</small></label><input type="text" id="gNpp" value="' + esc(p.NPP || '') + '">' : '') +
+    (proyek ? '<label class="f">No. sertifikat / kode iuran Jakon <small>(wajib saat Selesai)</small></label><input type="text" id="gJakon" value="' + esc(data.NO_JAKON || '') + '">' : '') +
+    '<label class="f">Catatan untuk pengaju</label><textarea id="gCat">' + esc(p.CatatanOwner || '') + '</textarea>' +
+    '<div class="aksi"><button class="btn" data-tutup>Tutup</button><button class="btn utama" id="gSimpan">Simpan</button></div>', function (bg) {
+      $$('.seg', bg).forEach(function (sg) {
+        $$('button', sg).forEach(function (b) {
+          b.onclick = function () { var k = sg.dataset.c; cek[k] = cek[k] === b.dataset.v ? '' : b.dataset.v; $$('button', sg).forEach(function (x) { x.className = cek[k] === x.dataset.v ? 'on ' + x.dataset.v : ''; }); if (cek[k] === 'ganti') $('#gSt', bg).value = 'Perlu perbaikan'; };
+        });
+      });
+      $('#gSimpan', bg).onclick = function () {
+        var st = $('#gSt', bg).value, cat = $('#gCat', bg).value;
+        var a = { id: p.ID, status: st, catatan: cat, cek: cek, npp: $('#gNpp', bg) ? $('#gNpp', bg).value : '', noJakon: $('#gJakon', bg) ? $('#gJakon', bg).value : '' };
+        busy(this, call('statusPengajuan', a)).then(function (r) {
+          bg.remove(); toast('Status diperbarui');
+          if (r.noHp) {
+            var ganti = Object.keys(cek).filter(function (k) { return cek[k] === 'ganti'; }).map(function (k) { var m = k.match(/^ktp_(\d+)$/); return m ? 'KTP pekerja ' + m[1] : (LABEL_BERKAS[k] || k); });
+            var t = 'Halo ' + (r.nama || '') + ' 👋\nPengajuan ' + (JUDUL_JENIS[p.Jenis] || p.Jenis) + ' ' + p.NamaPK + ' (' + p.ID + ') kini berstatus: *' + st + '*.' + (ganti.length ? '\nMohon ganti: ' + ganti.join(', ') + '.' : '') + (cat ? '\nCatatan: ' + cat : '') + '\n\nBuka SIGAP Jakon: ' + S.d.info.url;
+            modal('<h3>Kabari pengaju?</h3><p>Kirim pemberitahuan status lewat WhatsApp.</p><div class="aksi"><button class="btn" data-tutup>Nanti</button><a class="btn wa" target="_blank" href="' + esc(waLink(r.noHp, t)) + '">Kirim WA</a></div>');
+          }
+          return muatUlang(true);
+        }).catch(function () { });
+      };
+    });
+}
+
+/* ============================================================
+   OWNER — data & sinkron (pintasan INAPROC)
+   ============================================================ */
+function kartuInaproc(ringkas) {
+  var i = S.d.info;
+  return '<div class="kartu inaproc"><div class="baris"><b>Data proyek dari INAPROC</b><span class="sp"></span><a class="btn" target="_blank" href="' + esc(i.linkRup) + '">Buka RUP (rencana) ↗</a><a class="btn" target="_blank" href="' + esc(i.linkRealisasi) + '">Buka Realisasi (pemenang) ↗</a></div>' +
+    (ringkas ? '' : '<ol class="muted" style="margin:8px 0 0;padding-left:20px"><li>Di kedua halaman pilih: Tahun ' + esc(i.tahun || '') + ' → Jenis Instansi <b>Kabupaten</b> → Instansi <b>Kab. Pamekasan</b>.</li><li>Klik <b>Download CSV</b> (berisi semua baris, bukan hanya yang tampil).</li><li>Unggah kedua file di bawah sekaligus, atau taruh di folder Inbox. Sistem mengenali file RUP dan Realisasi, menyambungkannya lewat Kode RUP, lalu menyaring paket konstruksi.</li></ol>') + '</div>';
+}
+
+function ownerData(el) {
+  var d = S.d;
+  el.innerHTML = '<h2>Data & sinkron</h2>' + kartuInaproc(false) +
+    '<div class="kartu"><b>Unggah CSV / Excel</b><p class="muted">Bisa pilih beberapa file sekaligus (RUP + Realisasi). File RUP diproses lebih dulu.</p>' +
+    '<div class="baris"><input type="file" id="dFile" accept=".csv,.xlsx,.xls" multiple style="flex:1"><button class="btn utama" id="dImpor">Impor</button></div><div id="dHasil" class="muted" style="margin-top:8px"></div></div>' +
+    '<div class="kartu"><b>Sinkron otomatis</b><p class="muted">Impor berkas di folder Inbox → sinkron LENSA PK → cocokkan nama pemenang. Berjalan tiap pagi bila jadwal harian dipasang.</p>' +
+    '<div class="baris"><button class="btn utama" id="dSinkron">Tarik & sinkron sekarang</button><button class="btn" id="dLensa">Sinkron LENSA saja</button><button class="btn" id="dKolom">Cek kolom LENSA</button>' + (d.inbox ? '<a class="btn" target="_blank" href="' + esc(d.inbox) + '">Folder Inbox ↗</a>' : '') + '</div>' +
+    '<div class="muted" style="margin-top:6px">Data RUP tersimpan: ' + (d.rupTotal || 0).toLocaleString('id-ID') + ' paket · paket konstruksi: ' + d.paket.length.toLocaleString('id-ID') + '</div></div>' +
+    '<h3>Riwayat impor</h3><div id="tImp"></div>';
+  $('#dSinkron').onclick = function () { sinkronDanTampil(this); };
+  $('#dLensa').onclick = function () { busy(this, call('sinkronLensa')).then(function (r) { toast('LENSA: ' + r.baru + ' baru, ' + r.diperbarui + ' diperbarui'); return muatUlang(true); }).catch(function () { }); };
+  $('#dKolom').onclick = function () {
+    busy(this, call('cekKolomLensa')).then(function (r) {
+      modal('<h3>Kolom LENSA PK terbaca</h3><p>Tab: <b>' + esc(r.tab) + '</b> · ' + r.jumlahBaris + ' baris</p><table><tbody>' + Object.keys(r.kolom).map(function (k) { return '<tr><th>' + esc({ nama: 'Nama PK', npp: 'NPP', status: 'Status', bulan: 'Bulan tunggak', nominal: 'Nominal tunggakan', jenis: 'Jenis usaha / KBLI', alamat: 'Alamat', hp: 'Kontak HP' }[k]) + '</th><td>' + esc(r.kolom[k]) + '</td></tr>'; }).join('') + '</tbody></table>' +
+        '<p class="muted">Bila ada yang salah atau tidak ditemukan, isi judul kolom yang benar di Pengaturan (LENSA_KOLOM_…).</p><div class="aksi"><button class="btn utama" data-tutup>Tutup</button></div>');
+    }).catch(function () { });
+  };
+  $('#dImpor').onclick = function () {
+    var btn = this, files = Array.prototype.slice.call($('#dFile').files);
+    if (!files.length) return toast('Pilih berkas', true);
+    files.sort(function (a, b) { return (/rup_table|rup/i.test(b.name) ? 1 : 0) - (/rup_table|rup/i.test(a.name) ? 1 : 0); });
+    var hasil = [], out = $('#dHasil');
+    var jalan = files.reduce(function (pr, f) {
+      return pr.then(function () {
+        out.innerHTML = hasil.join('<br>') + (hasil.length ? '<br>' : '') + 'Memproses ' + esc(f.name) + '…';
+        return bacaBerkas(f).then(function (b) { return call('imporBerkas', { nama: f.name, mime: f.type || 'text/csv', base64: b.base64, sumber: 'OTOMATIS' }); })
+          .then(function (r) { hasil.push('✓ ' + esc(r.file) + ': ' + (r.format === 'INAPROC_RUP' ? 'RUP ' + r.baris + ' paket, ' + r.relevan + ' konstruksi' : r.format === 'INAPROC_REALISASI' ? 'Realisasi ' + r.baris + ' paket' : r.baris + ' baris') + ' · total konstruksi kini ' + r.totalKonstruksi); },
+            function (e) { hasil.push('✗ ' + esc(f.name) + ': ' + esc(e.message)); });
+      });
+    }, Promise.resolve());
+    busy(btn, jalan).then(function () { out.innerHTML = hasil.join('<br>'); return muatUlang(true).then(function () { var o = $('#dHasil'); if (o) o.innerHTML = hasil.join('<br>'); }); }).catch(function () { });
+  };
+  tabel($('#tImp'), d.impor, [['Waktu', 'Waktu'], ['Sumber', 'Sumber'], ['File', 'Berkas'], ['Baris', 'Baris', 'num'], ['Relevan', 'Konstruksi', 'num'], ['Baru', 'Baru', 'num'], ['Diperbarui', 'Diperbarui', 'num'], ['Catatan', 'Catatan']], { id: 'imp' });
+}
+
+/* ============================================================
+   MULAI
+   ============================================================ */
+(function mulai() {
+  var t = store('sigap_token');
+  if (!t) return layarLogin();
+  S.token = t;
+  // Tampilkan data terakhir dari perangkat lebih dulu, lalu segarkan dari server di belakang layar.
+  var c = bacaCache();
+  if (c) { S.d = c.d; S.me = c.d.me; tampilPeran(); tandaSegar(c.t); }
+  call('awal').then(function (d) {
+    S.d = d; S.me = d.me; simpanCache(d);
+    if (c && !bolehGanti()) { tandaSegar(0, true); return; }
+    tampilPeran();
+  }).catch(function (e) {
+    if (!S.token) return; // sesi habis → sudah ke layar masuk
+    if (c) { tandaSegar(c.t, false, e.message); return; }
+    S.token = null; store('sigap_token', null); layarLogin();
+  });
+})();
+
+/** Jangan timpa layar bila pengguna sudah mulai mengetik/memilih sesuatu. */
+document.addEventListener('input', function () { S.sibuk = true; }, true);
+function bolehGanti() { return !S.sibuk; }
+function tandaSegar(t, siap, err) {
+  var el = $('#segar'); var main = $('#main'); if (!main) return;
+  if (!el) { el = document.createElement('div'); el.id = 'segar'; el.className = 'segar'; main.parentNode.insertBefore(el, main); }
+  if (siap) { el.innerHTML = 'Data baru tersedia. <a href="#" id="segarKlik">Muat ulang</a>'; $('#segarKlik').onclick = function (e) { e.preventDefault(); tampilPeran(); }; return; }
+  if (err) {
+    el.textContent = 'Sedang offline / server belum menjawab. Menampilkan data tersimpan ' + new Date(t).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + '. Akan disegarkan otomatis saat koneksi kembali.';
+    window.addEventListener('online', function sekali() { window.removeEventListener('online', sekali); call('awal').then(function (d) { S.d = d; S.me = d.me; simpanCache(d); if (bolehGanti()) tampilPeran(); else tandaSegar(0, true); }).catch(function () { }); });
+    return;
+  }
+  el.textContent = 'Menampilkan data tersimpan, sedang menyegarkan…';
+}
+</script>
+<script>
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () { });
+</script>
+</body>
+</html>

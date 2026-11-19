@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#B93C0D"/>
+  <circle cx="256" cy="256" r="216" fill="#CF4E17"/>
+  <!-- helm proyek -->
+  <g fill="#FFFFFF">
+    <path d="M150 292 C150 210 196 156 256 156 C316 156 362 210 362 292 Z"/>
+    <rect x="116" y="284" width="280" height="40" rx="20"/>
+  </g>
+  <path d="M236 160 L236 286 L276 286 L276 160 C268 157 262 156 256 156 C250 156 243 157 236 160 Z" fill="#F1E3D9"/>
+  <path d="M188 226 C196 202 212 186 226 178" stroke="#F1E3D9" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <!-- lencana centang -->
+  <circle cx="360" cy="352" r="70" fill="#B93C0D"/>
+  <circle cx="360" cy="352" r="56" fill="#F3B13B"/>
+  <path d="M332 353 L352 373 L390 334" stroke="#7C2D12" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
