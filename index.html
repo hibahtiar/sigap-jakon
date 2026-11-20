@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="SIGAP Jakon">
+<!-- config.js (milik repo, tidak ikut zip): alamat server untuk formulir "Minta akses" -->
 <script src="config.js"></script>
 <title>SIGAP Jakon</title>
 <style>
@@ -98,13 +99,317 @@ td.num{text-align:right;white-space:nowrap}
 <div id="app"><div class="loading">Memuat…</div></div>
 
 <script>
+/* === kit:sandi === */
+/* =====================================================================
+ *  KitSandi — PIN perangkat bersama LENSA Suite (Tahap 3).
+ *  Data di perangkat dikunci dengan PIN: kunci AES-GCM 256 bit diturunkan dari PIN (PBKDF2-SHA256, 250.000 putaran),
+ *  isi dimampatkan (gzip) lalu disandikan. Rumus sama dengan PIN LENSA PK 2.x, sehingga semua aplikasi seragam.
+ *  PIN tidak pernah disimpan; yang tersimpan hanya garam + isi tersandi. Lupa PIN = data di perangkat harus dihapus
+ *  (data di Google Sheet tetap aman), lalu masuk lagi dengan kode undangan.
+ * ===================================================================== */
+var KitSandi = (function () {
+  var ULANG = 250000;
+  function keB64(buf) { var u = buf instanceof Uint8Array ? buf : new Uint8Array(buf), s = ''; for (var i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return btoa(s); }
+  function dariB64(s) { var b = atob(s), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+  function pinSah(pin) { return /^\d{4,12}$/.test(String(pin || '')); }
+  function garamBaru() { return crypto.getRandomValues(new Uint8Array(16)); }
+  async function kunciDariPin(pin, garam) {
+    var dasar = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(pin)), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: garam, iterations: ULANG, hash: 'SHA-256' }, dasar, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  async function mampat(teks) {
+    var b = new TextEncoder().encode(teks);
+    if (typeof CompressionStream === 'undefined') return { z: 0, b: b };
+    var s = new Blob([b]).stream().pipeThrough(new CompressionStream('gzip'));
+    return { z: 1, b: new Uint8Array(await new Response(s).arrayBuffer()) };
+  }
+  async function urai(b, z) {
+    if (!z) return new TextDecoder().decode(b);
+    var s = new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return new Response(s).text();
+  }
+  /** obj → rekaman tersandi { terkunci, garam, iv, z, isi (ArrayBuffer) }. */
+  async function sandikan(obj, kunci, garam) {
+    var m = await mampat(JSON.stringify(obj)), iv = crypto.getRandomValues(new Uint8Array(12));
+    var isi = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, kunci, m.b);
+    return { terkunci: true, garam: keB64(garam), iv: keB64(iv), z: m.z, isi: isi };
+  }
+  /** Rekaman tersandi → obj. PIN salah → melempar galat. isi boleh ArrayBuffer atau teks base64 (file cadangan). */
+  async function bukaSandi(rek, kunci) {
+    var isi = rek.isi instanceof ArrayBuffer || ArrayBuffer.isView(rek.isi) ? rek.isi : dariB64(rek.isi);
+    var b = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: dariB64(rek.iv) }, kunci, isi);
+    return JSON.parse(await urai(new Uint8Array(b), rek.z));
+  }
+  /** Rekaman tersandi untuk disimpan sebagai teks (localStorage / file cadangan). */
+  function keTeks(rek) { return Object.assign({}, rek, { isi: keB64(rek.isi) }); }
+  return { ULANG: ULANG, pinSah: pinSah, garamBaru: garamBaru, kunciDariPin: kunciDariPin, sandikan: sandikan, bukaSandi: bukaSandi, keTeks: keTeks, keB64: keB64, dariB64: dariB64 };
+})();
+
+/* === 20-simpan.js === */
+/* ----------------------------------------------------------------------
+ *  SIGAP Jakon 2.0 · penyimpanan di perangkat (IndexedDB "sigap_jakon", cadangan memori) + PIN pilihan (kit/sandi.js).
+ *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
+ *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
+ * ---------------------------------------------------------------------- */
+var VERSI_APP = '2.0.0';
+var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
+var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
+
+function dbKosong() {
+  return { versi: VERSI_APP, sinkron: { url: '', idp: '', token: '', idKlien: '', akses: null, terakhirOk: 0 }, awal: null, awalT: 0, galatAntre: [] };
+}
+var DB = dbKosong();
+var SIMPAN = { jenis: 'memori', kunci: null, garam: null, rekTerkunci: null, tertunda: null, antre: Promise.resolve() };
+var _idb = null;
+
+function bukaIdb() {
+  return new Promise(function (ok, gagal) {
+    if (typeof indexedDB === 'undefined') return gagal(new Error('IndexedDB tidak tersedia'));
+    var req = indexedDB.open(NAMA_DB, 1);
+    req.onupgradeneeded = function () { req.result.createObjectStore('kv'); };
+    req.onsuccess = function () { ok(req.result); };
+    req.onerror = function () { gagal(req.error || new Error('IndexedDB gagal dibuka')); };
+  });
+}
+function idbAmbil() {
+  return new Promise(function (ok, gagal) {
+    var r = _idb.transaction('kv', 'readonly').objectStore('kv').get(KUNCI_DB);
+    r.onsuccess = function () { ok(r.result || null); }; r.onerror = function () { gagal(r.error); };
+  });
+}
+function idbTaruh(isi) {
+  return new Promise(function (ok, gagal) {
+    var tx = _idb.transaction('kv', 'readwrite');
+    if (isi === null) tx.objectStore('kv').delete(KUNCI_DB); else tx.objectStore('kv').put(isi, KUNCI_DB);
+    tx.oncomplete = function () { ok(); }; tx.onerror = function () { gagal(tx.error); };
+  });
+}
+function lengkapiDb(d) {
+  var k = dbKosong();
+  Object.keys(k).forEach(function (x) { if (d[x] === undefined) d[x] = k[x]; });
+  Object.keys(k.sinkron).forEach(function (x) { if (d.sinkron[x] === undefined) d.sinkron[x] = k.sinkron[x]; });
+  d.versi = VERSI_APP;
+  return d;
+}
+async function muatDb() {
+  var data = null;
+  try { _idb = await bukaIdb(); data = await idbAmbil(); SIMPAN.jenis = 'idb'; }
+  catch (e) { _idb = null; SIMPAN.jenis = 'memori'; }
+  if (data && data.terkunci) { SIMPAN.rekTerkunci = data; DB = dbKosong(); return DB; }
+  DB = lengkapiDb(data || dbKosong());
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e2) { /* pilihan */ }
+  return DB;
+}
+/** Tulis berurutan; bila PIN terpasang, isi disandikan (AES-GCM dari PIN, rumus sama dengan LENSA PK). */
+function tulisDb() {
+  SIMPAN.antre = SIMPAN.antre.then(async function () {
+    if (!_idb || SIMPAN.rekTerkunci || SIMPAN.dihapus) return;
+    var isi = JSON.parse(JSON.stringify(DB));
+    if (SIMPAN.kunci) isi = await KitSandi.sandikan(isi, SIMPAN.kunci, SIMPAN.garam);
+    await idbTaruh(isi);
+  }).catch(function (e) { catatGalat('simpan', e && e.message || e); });
+  return SIMPAN.antre;
+}
+function simpanDb(segera) {
+  if (SIMPAN.tertunda) clearTimeout(SIMPAN.tertunda);
+  if (segera) return tulisDb();
+  SIMPAN.tertunda = setTimeout(tulisDb, 200);
+}
+/** Hapus semua data SIGAP di perangkat ini (dicabut / keluar / lupa PIN), termasuk sisa versi 1 di localStorage. */
+async function hapusDataPerangkat() {
+  if (SIMPAN.tertunda) clearTimeout(SIMPAN.tertunda);
+  SIMPAN.dihapus = true; // tidak ada tulisan lagi sampai masuk dengan kode undangan baru
+  try { await SIMPAN.antre; } catch (e) { /* diam */ }
+  DB = dbKosong(); SIMPAN.kunci = null; SIMPAN.garam = null; SIMPAN.rekTerkunci = null;
+  try { if (!_idb) _idb = await bukaIdb(); await idbTaruh(null); } catch (e) { /* diam */ }
+  bersihkanVersiLama();
+}
+/** SIGAP 1.x menyimpan token & data awal (termasuk NIK pekerja untuk admin CV) di localStorage: dibuang. */
+function bersihkanVersiLama() { try { localStorage.removeItem('sigap_token'); localStorage.removeItem('sigap_awal'); } catch (e) { /* diam */ } }
+
+/* ---------- PIN (pilihan) ---------- */
+function pinAktif() { return !!SIMPAN.kunci; }
+async function bukaDenganPin(pin) {
+  var rek = SIMPAN.rekTerkunci;
+  if (!rek) return true;
+  var garam = KitSandi.dariB64(rek.garam), k = await KitSandi.kunciDariPin(pin, garam), d;
+  try { d = await KitSandi.bukaSandi(rek, k); } catch (e) { return false; }
+  SIMPAN.kunci = k; SIMPAN.garam = garam; SIMPAN.rekTerkunci = null;
+  DB = lengkapiDb(d);
+  return true;
+}
+async function pasangPin(pin) {
+  if (!KitSandi.pinSah(pin)) throw new Error('PIN harus 4–12 angka.');
+  SIMPAN.garam = KitSandi.garamBaru();
+  SIMPAN.kunci = await KitSandi.kunciDariPin(pin, SIMPAN.garam);
+  await simpanDb(true);
+}
+async function lepasPin() { SIMPAN.kunci = null; SIMPAN.garam = null; await simpanDb(true); }
+
+/* ---------- galat aplikasi → Pusat Kendali LENSA (lewat server SIGAP) ---------- */
+function catatGalat(tempat, pesan) {
+  try {
+    var p = String(pesan || '').replace(/\d{12,}/g, '[angka]').slice(0, 400); // NIK / deret angka panjang tidak pernah dikirim
+    if (!p || DB.galatAntre.some(function (g) { return g.pesan === p; })) return;
+    DB.galatAntre.push({ waktu: new Date().toISOString().replace('T', ' ').slice(0, 19), tempat: String(tempat || '').slice(0, 100), pesan: p });
+    if (DB.galatAntre.length > 20) DB.galatAntre.splice(0, DB.galatAntre.length - 20);
+    simpanDb();
+  } catch (e) { /* diam */ }
+}
+window.addEventListener('error', function (e) { catatGalat('halaman', (e && e.message) + (e && e.filename ? ' @ ' + String(e.filename).split('/').pop() + ':' + e.lineno : '')); });
+window.addEventListener('unhandledrejection', function (e) { var r = e && e.reason; catatGalat('janji', r && r.message || r); });
+
+/* === 30-gerbang.js === */
+/* ----------------------------------------------------------------------
+ *  SIGAP Jakon 2.0 · gerbang LENSA Suite: masuk dengan kode undangan dari LENSA PK › Perangkat & pengguna
+ *  (awalan "SGJ." = alamat /exec + kode sekali pakai), panggilan ke server dengan idp + token perangkat,
+ *  Keluar, dicabut = data di perangkat dihapus, PIN pilihan.
+ * ---------------------------------------------------------------------- */
+var AWALAN_UNDANGAN = 'SGJ.';
+var KUNCI_SINKRON_MS = HARI_KUNCI * 864e5;
+
+function namaPerangkat() {
+  var u = navigator.userAgent || '', b = /Edg\//.test(u) ? 'Edge' : /Firefox\//.test(u) ? 'Firefox' : /Chrome\//.test(u) ? 'Chrome' : /Safari\//.test(u) ? 'Safari' : 'Peramban';
+  var o = /Android/.test(u) ? 'Android' : /iPhone|iPad/.test(u) ? 'iOS' : /Windows/.test(u) ? 'Windows' : /Mac OS/.test(u) ? 'macOS' : /Linux/.test(u) ? 'Linux' : '';
+  return b + (o ? ' · ' + o : '');
+}
+function idKlien() { if (!DB.sinkron.idKlien) DB.sinkron.idKlien = 'K' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); return DB.sinkron.idKlien; }
+function terdaftar() { return !!(DB.sinkron.idp && DB.sinkron.token && DB.sinkron.url); }
+
+/** "SGJ.eyJ1Ijoi…" → { url, kode }. */
+function bacaKodeUndangan(teks) {
+  var t = String(teks || '').replace(/\s+/g, '');
+  if (t.indexOf(AWALAN_UNDANGAN) !== 0) throw new Error('Kode undangan SIGAP diawali "' + AWALAN_UNDANGAN + '". Salin seluruh kode dari pesan undangan.');
+  var o;
+  try { o = JSON.parse(decodeURIComponent(escape(atob(t.slice(AWALAN_UNDANGAN.length))))); } catch (e) { throw new Error('Kode undangan tidak terbaca. Salin ulang seluruh kode dari pesan undangan.'); }
+  if (!o || !/^https:\/\/script\.google\.com\//.test(o.u || '') || !o.c) throw new Error('Kode undangan tidak lengkap.');
+  return { url: o.u, kode: o.c };
+}
+
+async function kirimKe(url, isi) {
+  var r;
+  try {
+    r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(isi), redirect: 'follow' });
+  } catch (e) { throw new Error(navigator.onLine === false ? 'Tidak ada koneksi internet' : 'Gagal menghubungi server: ' + (e && e.message || e)); }
+  if (!r.ok) throw new Error('Server menjawab ' + r.status);
+  var teks = await r.text();
+  try { return JSON.parse(teks); } catch (e) { throw new Error(/<html/i.test(teks) ? 'Alamat server salah, atau deployment SIGAP belum "Siapa saja".' : 'Jawaban server tidak terbaca.'); }
+}
+
+/** Panggilan berdata (peran disaring di server). Galat yang tertunda ikut terkirim. */
+async function panggilServer(fn, arg) {
+  if (!terdaftar()) throw new Error('Perangkat belum masuk.');
+  var galat = DB.galatAntre.splice(0);
+  var j;
+  try {
+    j = await kirimKe(DB.sinkron.url, { aksi: 'panggil', idp: DB.sinkron.idp, token: DB.sinkron.token, fn: fn, arg: arg || {}, versiApp: VERSI_APP, perangkat: namaPerangkat(), galat: galat });
+  } catch (e) { DB.galatAntre = galat.concat(DB.galatAntre).slice(-20); simpanDb(); throw e; }
+  if (!j.ok) {
+    if (j.cabut) { await dicabut(j.galat); throw new Error(j.galat); }
+    if (galat.length) simpanDb();
+    throw new Error(j.galat || 'Gagal');
+  }
+  if (j.akses) DB.sinkron.akses = j.akses;
+  DB.sinkron.terakhirOk = Date.now();
+  simpanDb();
+  return j.data;
+}
+/** Formulir "Minta akses" (tanpa kode): alamat server dari config.js. */
+async function panggilPublik(aksi, arg) {
+  var url = window.SIGAP_API || DB.sinkron.url;
+  if (!url || /GANTI_DENGAN/.test(url)) throw new Error('Alamat server belum diatur. Minta kode undangan langsung ke petugas KC.');
+  var j = await kirimKe(url, { aksi: aksi, arg: arg || {} });
+  if (!j.ok) throw new Error(j.error || j.galat || 'Gagal');
+  return j.data;
+}
+
+async function masukDenganKode(teks) {
+  var k = bacaKodeUndangan(teks);
+  var j = await kirimKe(k.url, { aksi: 'gabung', kode: k.kode, perangkat: namaPerangkat(), idKlien: idKlien(), versiApp: VERSI_APP });
+  if (!j.ok) throw new Error(j.galat || 'Kode undangan ditolak.');
+  DB.sinkron.url = k.url; DB.sinkron.idp = j.idp; DB.sinkron.token = j.token; DB.sinkron.akses = j.akses; DB.sinkron.terakhirOk = Date.now();
+  DB.awal = null; DB.awalT = 0; SIMPAN.dihapus = false;
+  await simpanDb(true);
+  return j.akses;
+}
+
+/** Akses dicabut / perangkat tidak terdaftar lagi: semua data SIGAP di perangkat ini dihapus. */
+async function dicabut(pesan) {
+  await hapusDataPerangkat();
+  S.d = null; S.me = null; S.tab = null;
+  layarMasuk('Akses perangkat ini sudah berakhir: ' + (pesan || 'dicabut oleh petugas') + '. Data SIGAP di perangkat ini sudah dihapus.');
+}
+async function keluarPerangkat() {
+  if (!confirm('Keluar dari SIGAP Jakon di perangkat ini?\n\nData SIGAP di perangkat ini dihapus. Untuk masuk lagi perlu kode undangan baru dari petugas KC.')) return;
+  try { await kirimKe(DB.sinkron.url, { aksi: 'keluar', idp: DB.sinkron.idp, token: DB.sinkron.token, versiApp: VERSI_APP }); } catch (e) { /* tetap dihapus di perangkat */ }
+  await hapusDataPerangkat();
+  S.d = null; S.me = null; S.tab = null;
+  layarMasuk('Anda sudah keluar. Data SIGAP di perangkat ini sudah dihapus.');
+}
+
+function kartuGerbang(isi) {
+  return '<div class="login"><div class="kartu"><div class="mono besar" aria-hidden="true">' + IKON + '</div><h1>SIGAP Jakon</h1><div class="muted">Sistem Informasi Gerbang Kepatuhan Jasa Konstruksi</div>' + isi +
+    '</div><p class="muted" style="text-align:center;font-size:12px">Aplikasi kreativitas staf KC Pamekasan, bukan aplikasi resmi BPJS Ketenagakerjaan · versi ' + VERSI_APP + '</p></div>';
+}
+function layarMasuk(pesan) {
+  $('#app').innerHTML = kartuGerbang((pesan ? '<div class="info" style="margin-top:14px">' + esc(pesan) + '</div>' : '') +
+    '<form id="fMasuk"><label class="f">Kode undangan <small>(dari petugas KC lewat WhatsApp, diawali SGJ.)</small></label>' +
+    '<textarea id="lKode" rows="3" autocomplete="off" spellcheck="false" placeholder="SGJ.…"></textarea>' +
+    '<div style="margin-top:16px"><button class="btn utama" style="width:100%;justify-content:center" id="lBtn">Masuk</button></div></form>' +
+    '<p class="muted" style="margin-top:16px">Belum punya kode? <a href="#" id="lMinta">Minta akses</a></p>');
+  $('#fMasuk').onsubmit = function (e) {
+    e.preventDefault();
+    busy($('#lBtn'), masukDenganKode($('#lKode').value)).then(function (a) {
+      toast('Masuk sebagai ' + a.pengguna + ' · ' + a.peran);
+      S.tab = null;
+      $('#app').innerHTML = '<div class="loading">Memuat data…</div>';
+      return muatUlang();
+    }).catch(function () { });
+  };
+  $('#lMinta').onclick = function (e) { e.preventDefault(); formMintaAkses(); };
+}
+
+/** Layar PIN saat data di perangkat terkunci. Lupa PIN → data dihapus, masuk lagi dengan kode undangan baru. */
+function layarPin() {
+  return new Promise(function (selesai) {
+    $('#app').innerHTML = kartuGerbang('<form id="fPin"><label class="f">PIN perangkat ini</label><input type="password" inputmode="numeric" id="pPin" autocomplete="off">' +
+      '<div style="margin-top:16px"><button class="btn utama" style="width:100%;justify-content:center" id="pBtn">Buka</button></div></form>' +
+      '<p class="muted" style="margin-top:16px"><a href="#" id="pLupa">Lupa PIN?</a></p>');
+    $('#fPin').onsubmit = function (e) {
+      e.preventDefault();
+      busy($('#pBtn'), bukaDenganPin($('#pPin').value)).then(function (ok) { if (ok) selesai(true); else { toast('PIN salah.', true); $('#pPin').value = ''; } }).catch(function () { });
+    };
+    $('#pLupa').onclick = function (e) {
+      e.preventDefault();
+      if (!confirm('Lupa PIN: data SIGAP di perangkat ini dihapus, lalu Anda perlu kode undangan baru dari petugas KC. Lanjutkan?')) return;
+      hapusDataPerangkat().then(function () { selesai(false); });
+    };
+    setTimeout(function () { var x = $('#pPin'); if (x) x.focus(); }, 50);
+  });
+}
+function formPin() {
+  var ada = pinAktif();
+  modal('<h3>PIN perangkat</h3><p class="muted">' + (ada ? 'Data SIGAP di perangkat ini terkunci PIN.' : 'PIN (pilihan) mengunci data SIGAP di perangkat ini. NIK & foto KTP memang tidak pernah disimpan di perangkat.') + '</p>' +
+    '<label class="f">' + (ada ? 'PIN baru' : 'PIN') + ' <small>(4–12 angka)</small></label><input type="password" inputmode="numeric" id="nPin1">' +
+    '<label class="f">Ulangi PIN</label><input type="password" inputmode="numeric" id="nPin2">' +
+    '<div class="aksi">' + (ada ? '<button class="btn" id="nLepas">Lepas PIN</button>' : '') + '<button class="btn" data-tutup>Batal</button><button class="btn utama" id="nPasang">' + (ada ? 'Ganti PIN' : 'Pasang PIN') + '</button></div>', function (bg) {
+      $('#nPasang', bg).onclick = function () {
+        var a = $('#nPin1', bg).value, b = $('#nPin2', bg).value;
+        if (a !== b) { toast('PIN tidak sama.', true); return; }
+        busy(this, pasangPin(a)).then(function () { bg.remove(); toast('PIN terpasang.'); }).catch(function () { });
+      };
+      if ($('#nLepas', bg)) $('#nLepas', bg).onclick = function () { busy(this, lepasPin()).then(function () { bg.remove(); toast('PIN dilepas.'); }).catch(function () { }); };
+    });
+}
+
+/* === 50-tampilan.js === */
 /* ============================================================
-   SIGAP Jakon — tampilan
+   SIGAP Jakon — tampilan (menu & isi sama dengan versi 1; 2.0: fondasi LENSA Suite —
+   masuk dengan kode undangan, penyimpanan + PIN di perangkat, peran disaring server)
    ============================================================ */
 var S = { token: null, me: null, d: null, tab: null, f: {} };
 var IKON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect fill="#B93C0D"/><circle cx="256" cy="256" r="216" fill="#CF4E17"/><g fill="#FFFFFF"><path d="M150 292 C150 210 196 156 256 156 C316 156 362 210 362 292 Z"/><rect x="116" y="284" width="280" height="40" rx="20"/></g><path d="M236 160 L236 286 L276 286 L276 160 C268 157 262 156 256 156 C250 156 243 157 236 160 Z" fill="#F1E3D9"/><path d="M188 226 C196 202 212 186 226 178" stroke="#F1E3D9" stroke-width="14" stroke-linecap="round" fill="none"/><circle cx="360" cy="352" r="70" fill="#B93C0D"/><circle cx="360" cy="352" r="56" fill="#F3B13B"/><path d="M332 353 L352 373 L390 334" stroke="#7C2D12" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
-/* Alamat API Apps Script. Di GitHub Pages diisi lewat config.js (window.SIGAP_API). */
-var API_URL = window.SIGAP_API || '';
+/* 2.0: alamat server datang dari kode undangan; config.js (window.SIGAP_API) hanya untuk formulir "Minta akses". */
 var STATUS_CV = ['Terdaftar aktif', 'Menunggak', 'Nonaktif', 'Belum terdaftar / perlu cek'];
 
 // ---------- util ----------
@@ -118,7 +423,6 @@ function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.
 function thisMonth() { return today().slice(0, 7); }
 function hp62(v) { var s = String(v || '').replace(/\D/g, ''); if (s[0] === '0') s = '62' + s.slice(1); if (s[0] === '8') s = '62' + s; return s; }
 function waLink(no, teks) { return 'https://api.whatsapp.com/send?phone=' + hp62(no) + '&text=' + encodeURIComponent(teks); }
-function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
 
 function chipCls(s) {
   s = String(s || '').toLowerCase();
@@ -137,25 +441,10 @@ function toast(msg, err) {
   document.body.appendChild(t); setTimeout(function () { t.remove(); }, err ? 6000 : 3200);
 }
 
+/** 2.0: semua panggilan lewat perangkat terdaftar (idp + token); "Minta akses" tanpa kode lewat config.js. */
 function call(aksi, arg) {
-  return new Promise(function (ok, gagal) {
-    var done = function (r) {
-      if (r && r.ok) return ok(r.data);
-      var e = (r && r.error) || 'Gagal';
-      if (e.indexOf('SESI_HABIS') >= 0) { keluar(true); return gagal(new Error('Sesi berakhir, silakan masuk lagi')); }
-      gagal(new Error(e));
-    };
-    if (window.google && google.script && google.script.run) google.script.run.withSuccessHandler(done).withFailureHandler(function (e) { gagal(e); }).api(aksi, S.token, arg || {});
-    else if (window.MOCK) setTimeout(function () { done(window.MOCK(aksi, S.token, arg || {})); }, 60);
-    else if (API_URL) {
-      // text/plain agar tidak memicu preflight CORS; Apps Script membaca isinya di doPost.
-      fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ aksi: aksi, token: S.token, arg: arg || {} }), redirect: 'follow' })
-        .then(function (r) { if (!r.ok) throw new Error('Server menjawab ' + r.status); return r.json(); })
-        .then(done)
-        .catch(function (e) { gagal(new Error(navigator.onLine === false ? 'Tidak ada koneksi internet' : 'Gagal menghubungi server: ' + (e && e.message || e))); });
-    }
-    else gagal(new Error('Alamat server belum diatur (config.js)'));
-  });
+  if (aksi === 'mintaAkses' || aksi === 'infoPublik') return panggilPublik(aksi, arg);
+  return panggilServer(aksi, arg);
 }
 
 /** Jalankan aksi dengan tombol "loading". */
@@ -247,11 +536,14 @@ function hitung(arr, fn) { var c = {}; arr.forEach(function (x) { var k = fn(x);
 // ---------- kerangka ----------
 function kerangka(tabs) {
   var me = S.me;
-  var peranLabel = { OWNER: 'Petugas KC', JAKON: 'Admin / Direktur CV', PEMKAB: 'Pemkab / Instansi' }[me.peran];
+  var peranLabel = { Pemilik: 'Petugas KC · Pemilik', Pelaksana: 'Petugas KC · Pelaksana', Mitra: 'Admin / Direktur CV', Pengamat: 'Pemkab / Instansi' }[me.peranSuite] ||
+    { OWNER: 'Petugas KC', JAKON: 'Admin / Direktur CV', PEMKAB: 'Pemkab / Instansi' }[me.peran];
+  if (me.hak === 'Lihat') peranLabel += ' · hanya melihat';
   $('#app').innerHTML = '<div class="top"><div class="mono" aria-hidden="true">' + IKON + '</div><div class="judul">SIGAP Jakon<small>Gerbang Kepatuhan Jasa Konstruksi</small></div><span class="sp"></span>' +
-    '<div class="user"><b>' + esc(me.nama) + '</b><br>' + esc(peranLabel) + '</div><button class="btn kecil" id="btnKeluar">Keluar</button></div>' +
-    '<nav class="nav" id="nav"></nav><main id="main"></main><footer class="disc">SIGAP Jakon · aplikasi kreativitas staf KC Pamekasan, bukan aplikasi resmi BPJS Ketenagakerjaan</footer>';
-  $('#btnKeluar').onclick = function () { call('logout').catch(function () { }); keluar(); };
+    '<div class="user"><b>' + esc(me.nama) + '</b><br>' + esc(peranLabel) + '</div><button class="btn kecil" id="btnPin" title="Kunci data di perangkat ini dengan PIN">PIN</button><button class="btn kecil" id="btnKeluar">Keluar</button></div>' +
+    '<nav class="nav" id="nav"></nav><main id="main"></main><footer class="disc">SIGAP Jakon ' + VERSI_APP + ' · server ' + esc((S.d.info && S.d.info.versi) || '') + ' · aplikasi kreativitas staf KC Pamekasan, bukan aplikasi resmi BPJS Ketenagakerjaan</footer>';
+  $('#btnKeluar').onclick = function () { keluarPerangkat(); };
+  $('#btnPin').onclick = function () { formPin(); };
   var nav = $('#nav');
   nav.innerHTML = tabs.map(function (t) { return '<button data-t="' + t[0] + '">' + esc(t[1]) + (t[3] ? '<span class="badge">' + t[3] + '</span>' : '') + '</button>'; }).join('');
   var go = function (id) { S.tab = id; $$('button', nav).forEach(function (b) { b.classList.toggle('on', b.dataset.t === id); }); var t = tabs.filter(function (x) { return x[0] === id; })[0]; $('#main').innerHTML = ''; t[2]($('#main')); window.scrollTo(0, 0); };
@@ -260,10 +552,10 @@ function kerangka(tabs) {
   go(tabs.some(function (t) { return t[0] === S.tab; }) ? S.tab : tabs[0][0]);
 }
 
-function simpanCache(d) { try { store('sigap_awal', JSON.stringify({ t: Date.now(), d: d })); } catch (e) { } }
-function bacaCache() { try { var c = JSON.parse(store('sigap_awal') || 'null'); return c && c.d ? c : null; } catch (e) { return null; } }
+/** 2.0: data awal terakhir disimpan di IndexedDB (NIK sudah disamarkan server), bukan localStorage. */
+function simpanCache(d) { DB.awal = d; DB.awalT = Date.now(); simpanDb(); }
 function muatUlang(tetapTab) {
-  return call('awal').then(function (d) { S.d = d; S.me = d.me; simpanCache(d); if (!tetapTab) S.tab = null; tampilPeran(); });
+  return call('awal').then(function (d) { siapkanData(d); simpanCache(d); if (!tetapTab) S.tab = null; tampilPeran(); });
 }
 
 function tampilPeran() {
@@ -273,31 +565,8 @@ function tampilPeran() {
   return tampilJakon();
 }
 
-function keluar(diam) {
-  S.token = null; S.me = null; S.d = null; store('sigap_token', null); store('sigap_awal', null);
-  layarLogin(); if (diam) toast('Sesi berakhir, silakan masuk lagi');
-}
-
-// ---------- LOGIN ----------
-function layarLogin() {
-  $('#app').innerHTML = '<div class="login"><div class="kartu"><div class="mono besar" aria-hidden="true">' + IKON + '</div><h1>SIGAP Jakon</h1><div class="muted">Sistem Informasi Gerbang Kepatuhan Jasa Konstruksi</div>' +
-    '<form id="fLogin"><label class="f">ID pengguna</label><input type="text" id="lId" autocomplete="username" autocapitalize="characters" required>' +
-    '<label class="f">Kode akses</label><input type="password" id="lKode" autocomplete="current-password" required>' +
-    '<div style="margin-top:16px"><button class="btn utama" style="width:100%;justify-content:center" id="lBtn">Masuk</button></div></form>' +
-    '<p class="muted" style="margin-top:16px">Belum punya akses? <a href="#" id="lMinta">Minta akses</a></p></div><p class="muted" style="text-align:center;font-size:12px">Aplikasi kreativitas staf KC Pamekasan, bukan aplikasi resmi BPJS Ketenagakerjaan.</p></div>';
-  $('#fLogin').onsubmit = function (e) {
-    e.preventDefault();
-    busy($('#lBtn'), call('login', { id: $('#lId').value, kode: $('#lKode').value })).then(function (r) {
-      S.token = r.token; S.me = r.user; store('sigap_token', r.token); S.tab = null;
-      $('#app').innerHTML = '<div class="loading">Memuat data…</div>';
-      return muatUlang();
-    }).catch(function () { });
-  };
-  $('#lMinta').onclick = function (e) { e.preventDefault(); formMintaAkses(); };
-}
-
 function formMintaAkses() {
-  modal('<h3>Minta akses SIGAP Jakon</h3><p class="muted">Pembina akan memeriksa dan mengirim ID serta kode akses lewat WhatsApp.</p>' +
+  modal('<h3>Minta akses SIGAP Jakon</h3><p class="muted">Petugas KC akan memeriksa dan mengirim kode undangan lewat WhatsApp ke nomor Anda.</p>' +
     '<label class="f">Saya adalah</label><select id="mPeran"><option value="JAKON">Admin / pelaksana / direktur CV/PT jasa konstruksi</option><option value="PEMKAB">Pegawai Pemkab / instansi</option></select>' +
     '<label class="f">Nama lengkap</label><input type="text" id="mNama">' +
     '<label class="f">Nomor HP / WhatsApp</label><input type="tel" id="mHp" placeholder="08…">' +
@@ -322,10 +591,10 @@ function tampilOwner() {
     ['cv', 'CV/PT', ownerCv],
     ['proyek', 'Proyek', ownerProyek],
     ['peng', 'Pengajuan', ownerPengajuan, nPeng || ''],
-    ['user', 'Pengguna', ownerPengguna, d.akses.length || ''],
+    S.me.peranSuite === 'Pemilik' ? ['user', 'Akses', ownerAkses, d.akses.length || ''] : null,
     ['data', 'Data', ownerData],
-    ['set', 'Pengaturan', ownerSetelan]
-  ]);
+    d.config ? ['set', 'Pengaturan', ownerSetelan] : null
+  ].filter(Boolean));
 }
 
 function masalahPaket(d) {
@@ -343,7 +612,7 @@ function ownerRingkasan(el) {
   el.innerHTML = '<div class="baris"><h2>Ringkasan</h2><span class="sp"></span><button class="btn utama" id="bSinkron">Tarik & sinkron sekarang</button></div>' + kartuInaproc(true) +
     '<h3>CV/PT jasa konstruksi</h3><div class="grid">' + kpi(d.cv.length, 'Total CV/PT', '', 'cv') + kpi(st['Terdaftar aktif'] || 0, 'Terdaftar aktif', 'hijau', 'cv:Terdaftar aktif') + kpi(st['Menunggak'] || 0, 'Menunggak', 'merah', 'cv:Menunggak') + kpi(st['Nonaktif'] || 0, 'Nonaktif', '', 'cv:Nonaktif') + kpi(st['Belum terdaftar / perlu cek'] || 0, 'Belum terdaftar / perlu cek', 'oranye', 'cv:Belum terdaftar / perlu cek') + '</div>' +
     '<h3>Proyek konstruksi (INAPROC + laporan CV)</h3><div class="grid">' + kpi(d.paket.length, 'Paket konstruksi', '', 'proyek') + kpi(d.paket.length - berpemenang.length, 'Rencana, belum ada pemenang') + kpi(berpemenang.length, 'Sudah ada pemenang', 'biru') + kpi(real, 'Berjalan / checklist / selesai', 'hijau') + kpi(tunda, 'Ditunda', 'oranye') + kpi(masalah.length, 'Pemenang bermasalah', 'merah', 'proyek:masalah') + '</div>' +
-    '<h3>Antrean</h3><div class="grid">' + kpi(d.pengajuan.filter(function (p) { return p.Status === 'Diajukan'; }).length, 'Pengajuan menunggu verifikasi', 'biru', 'peng') + kpi(d.akses.length, 'Permintaan akses', '', 'user') + kpi(mirip.length, 'Nama pemenang perlu dicek', 'oranye', 'proyek:mirip') + '</div>' +
+    '<h3>Antrean</h3><div class="grid">' + kpi(d.pengajuan.filter(function (p) { return p.Status === 'Diajukan'; }).length, 'Pengajuan menunggu verifikasi', 'biru', 'peng') + (S.me.peranSuite === 'Pemilik' ? kpi(d.akses.length, 'Permintaan akses', '', 'user') : '') + kpi(mirip.length, 'Nama pemenang perlu dicek', 'oranye', 'proyek:mirip') + '</div>' +
     '<h3>Prioritas tindak lanjut: pemenang yang menunggak / nonaktif / belum terdaftar</h3><div id="prio"></div>';
   $$('[data-go]', el).forEach(function (k) {
     k.onclick = function () { var g = k.dataset.go.split(':'); if (g[0] === 'cv' && g[1]) S.f.cvSt = g[1]; if (g[0] === 'proyek' && g[1]) S.f.pkFil = g[1] === 'masalah' ? 'Bermasalah' : 'Nama perlu dicek'; S.go(g[0]); };
@@ -369,8 +638,8 @@ function sinkronDanTampil(btn) {
     var baris = [];
     (r.api || []).forEach(function (a) { baris.push('API ' + esc(a.endpoint || '') + ': ' + esc(a.error || a.info || (a.relevan + ' paket relevan, ' + a.baru + ' baru'))); });
     baris.push((r.inbox || []).length ? (r.inbox.map(function (a) { return 'Inbox ' + esc(a.file) + ': ' + esc(a.error || (a.relevan + ' relevan, ' + a.baru + ' baru')); }).join('<br>')) : 'Inbox: tidak ada berkas baru');
-    if (r.lensa) baris.push('LENSA: ' + esc(r.lensa.info || (r.lensa.baru + ' CV baru, ' + r.lensa.diperbarui + ' diperbarui')));
-    if (r.cocok) baris.push('Pencocokan: ' + r.cocok.cocok + ' cocok, ' + r.cocok.mirip + ' mirip, ' + r.cocok.baru + ' tidak ada di LENSA');
+    if (r.lensa) baris.push('Data KC: ' + esc(r.lensa.info || (r.lensa.baru + ' CV baru, ' + r.lensa.diperbarui + ' diperbarui')));
+    if (r.cocok) baris.push('Pencocokan: ' + r.cocok.cocok + ' cocok, ' + r.cocok.mirip + ' mirip, ' + r.cocok.baru + ' tidak ada di data KC');
     (r.galat || []).forEach(function (g) { baris.push('<span style="color:var(--merah)">' + esc(g) + '</span>'); });
     modal('<h3>Hasil sinkron</h3><div>' + baris.join('<br>') + '</div><div class="aksi"><button class="btn utama" data-tutup>Tutup</button></div>');
     return muatUlang(true);
@@ -386,8 +655,8 @@ function ownerCv(el) {
     var rows = d.cv.filter(function (c) { return f === 'Semua' || c.Status === f; }).map(function (c) { c._paket = nPaket[c.ID] || 0; return c; });
     rows.sort(function (a, b) { return b._paket - a._paket || String(a.Nama).localeCompare(b.Nama); });
     tabel($('#tCv'), rows, [['Nama', 'Nama'], ['NPP', 'NPP'], [function (r) { return chip(r.Status) + (r.StatusManual ? ' <span class="muted">(manual)</span>' : ''); }, 'Status'],
-      [function (r) { return r.BulanTunggak === '' || r.BulanTunggak == null ? '-' : esc(r.BulanTunggak); }, 'Bln tunggak', 'num'], [function (r) { return r._paket || '-'; }, 'Paket', 'num'], ['DiLENSA', 'Di LENSA'], ['Sumber', 'Sumber']],
-      { id: 'cv', klik: detailCv, csv: 'cv-jakon', csvKolom: [['Nama', 'Nama'], ['NPP', 'NPP'], ['Status', 'Status'], ['BulanTunggak', 'Bulan tunggak'], ['NominalTunggak', 'Nominal'], ['_paket', 'Jumlah paket'], ['DiLENSA', 'Di LENSA'], ['Kontak', 'Kontak'], ['Alamat', 'Alamat'], ['Catatan', 'Catatan']] });
+      [function (r) { return r.BulanTunggak === '' || r.BulanTunggak == null ? '-' : esc(r.BulanTunggak); }, 'Bln tunggak', 'num'], [function (r) { return r._paket || '-'; }, 'Paket', 'num'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Sumber', 'Sumber']],
+      { id: 'cv', klik: detailCv, csv: 'cv-jakon', csvKolom: [['Nama', 'Nama'], ['NPP', 'NPP'], ['Status', 'Status'], ['BulanTunggak', 'Bulan tunggak'], ['NominalTunggak', 'Nominal'], ['_paket', 'Jumlah paket'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Kontak', 'Kontak'], ['Alamat', 'Alamat'], ['Catatan', 'Catatan']] });
   };
   filterChips($('#fCv'), 'cvSt', [['Semua', d.cv.length]].concat(STATUS_CV.map(function (s) { return [s, st[s] || 0]; })), render);
   render();
@@ -402,7 +671,7 @@ function detailCv(c) {
     (baru ? '<label class="f">Nama CV/PT</label><input type="text" id="cNama">' : '<div class="baris">' + chip(c.Status) + '<span class="muted">Status otomatis: ' + esc(c.StatusOtomatis || '-') + ' · Bulan tunggak: ' + esc(c.BulanTunggak === '' ? '-' : c.BulanTunggak) + ' · Nominal: ' + rp(c.NominalTunggak) + '</span></div><p class="muted">' + esc(c.JenisUsaha || '') + '</p>') +
     '<div class="dua"><div><label class="f">NPP</label><input type="text" id="cNpp" value="' + esc(c.NPP || '') + '"></div><div><label class="f">Kontak (HP)</label><input type="tel" id="cKontak" value="' + esc(c.Kontak || '') + '"></div></div>' +
     '<label class="f">Alamat</label><input type="text" id="cAlamat" value="' + esc(c.Alamat || '') + '">' +
-    '<label class="f">Status manual <small>(mengalahkan status otomatis; kosongkan untuk ikut LENSA)</small></label><select id="cStatus"><option value="">— ikut status otomatis —</option>' + STATUS_CV.concat(['Terdaftar – binaan pembina lain']).map(function (s) { return '<option ' + (c.StatusManual === s ? 'selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select>' +
+    '<label class="f">Status manual <small>(mengalahkan status otomatis; kosongkan untuk ikut data KC)</small></label><select id="cStatus"><option value="">— ikut status otomatis —</option>' + STATUS_CV.concat(['Terdaftar – binaan pembina lain']).map(function (s) { return '<option ' + (c.StatusManual === s ? 'selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select>' +
     '<label class="f">Catatan</label><textarea id="cCat">' + esc(c.Catatan || '') + '</textarea>' +
     (paket.length ? '<h3>Paket (' + paket.length + ')</h3>' + paket.map(function (p) { return '<div class="muted">• ' + esc(p.NamaPaket) + ' — ' + jt(p.NilaiKontrak || p.Pagu) + ' ' + chip(p.StatusPemkab) + '</div>'; }).join('') : '') +
     (users.length ? '<h3>Pengguna terhubung</h3>' + users.map(function (u) { return '<div class="muted">• ' + esc(u.Nama) + ' (' + esc(u.ID) + ') ' + esc(u.NoHP) + '</div>'; }).join('') : '') +
@@ -478,75 +747,22 @@ function ownerPengajuan(el) {
   var render = function () {
     var f = S.f.pgSt || 'Diajukan';
     var rows = d.pengajuan.filter(function (p) { return f === 'Semua' || p.Status === f; });
-    tabel($('#lPg'), rows, [['ID', 'Nomor'], ['Jenis', 'Jenis'], ['NamaPK', 'Perusahaan'], ['UserID', 'Oleh'], [function (r) { return chip(r.Status); }, 'Status'], ['Diperbarui', 'Diperbarui']], { id: 'pg', klik: detailPengajuan, kosong: 'Tidak ada pengajuan dengan status ini' });
+    tabel($('#lPg'), rows, [['ID', 'Nomor'], ['Jenis', 'Jenis'], ['NamaPK', 'Perusahaan'], [function (r) { return esc(namaPengaju(r)); }, 'Oleh'], [function (r) { return chip(r.Status); }, 'Status'], ['Diperbarui', 'Diperbarui']], { id: 'pg', klik: detailPengajuan, kosong: 'Tidak ada pengajuan dengan status ini' });
   };
   filterChips($('#fPg'), 'pgSt', [['Diajukan', st['Diajukan'] || 0], ['Perlu perbaikan', st['Perlu perbaikan'] || 0], ['Diverifikasi', st['Diverifikasi'] || 0], ['Selesai', st['Selesai'] || 0], ['Ditolak', st['Ditolak'] || 0], ['Draf', st['Draf'] || 0], ['Semua', d.pengajuan.length]], render);
   render();
 }
 
 
-function ownerPengguna(el) {
+/** 2.0: pengguna & kode undangan dikelola di LENSA PK › Perangkat & pengguna (Pusat Kendali). */
+function ownerAkses(el) {
   var d = S.d;
-  el.innerHTML = '<div class="baris"><h2>Pengguna & akses</h2><span class="sp"></span><button class="btn utama" id="bTambahU">+ Tambah pengguna</button></div>' +
-    (d.akses.length ? '<h3>Permintaan akses menunggu</h3><div id="lAk"></div>' : '') + '<h3>Daftar pengguna</h3><div id="tU"></div>';
-  if (d.akses.length) $('#lAk').innerHTML = d.akses.map(function (a, i) { return '<div class="item" data-i="' + i + '"><div class="t">' + esc(a.Nama) + ' <span class="chip">' + esc(a.Peran) + '</span></div><div class="s">' + esc(a.Instansi || '-') + ' · ' + esc(a.NoHP) + ' · ' + esc(a.Waktu) + '</div>' + (a.CV_Diurus ? '<div class="s">CV diurus: ' + esc(a.CV_Diurus) + '</div>' : '') + '</div>'; }).join('');
-  $$('#lAk .item').forEach(function (it) { it.onclick = function () { prosesAkses(d.akses[+it.dataset.i]); }; });
-  var namaCv = {}; d.cv.forEach(function (c) { namaCv[c.ID] = c.Nama; });
-  tabel($('#tU'), d.pengguna, [['ID', 'ID'], ['Nama', 'Nama'], ['Peran', 'Peran'], ['Instansi', 'Instansi'], ['NoHP', 'HP'],
-    [function (r) { var l = String(r.CV_IDs || '').split(',').filter(String); return l.length ? esc(l.map(function (x) { return namaCv[x] || x; }).join(', ')) : '-'; }, 'CV terhubung'],
-    [function (r) { return chip(r.Aktif === 'Ya' ? 'Aktif' : 'Nonaktif'); }, 'Status'], ['LoginTerakhir', 'Login terakhir']], { id: 'u', klik: formPengguna });
-  $('#bTambahU').onclick = function () { formPengguna({}); };
-}
-
-function pilihCvHtml(terpilih) {
-  var t = {}; (terpilih || []).forEach(function (x) { t[x] = 1; });
-  return '<input type="text" placeholder="Cari CV…" id="cvCari" style="margin-bottom:6px"><div id="cvList" style="max-height:220px;overflow:auto;border:1px solid var(--garis);border-radius:9px;padding:6px 8px">' +
-    S.d.cv.slice().sort(function (a, b) { return (t[b.ID] ? 1 : 0) - (t[a.ID] ? 1 : 0) || String(a.Nama).localeCompare(b.Nama); }).map(function (c) { return '<label style="display:block;padding:3px 0"><input type="checkbox" value="' + esc(c.ID) + '" ' + (t[c.ID] ? 'checked' : '') + '> ' + esc(c.Nama) + ' <span class="muted">' + esc(c.NPP || '') + '</span></label>'; }).join('') + '</div>';
-}
-function pasangPilihCv(bg) {
-  $('#cvCari', bg).oninput = function () { var q = this.value.toLowerCase(); $$('#cvList label', bg).forEach(function (l) { l.style.display = l.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none'; }); };
-  return function () { return $$('#cvList input:checked', bg).map(function (i) { return i.value; }); };
-}
-
-function tampilKode(nama, id, kode, noHp) {
-  var t = 'Halo ' + nama + ' 👋\nBerikut akses Anda ke *SIGAP Jakon* BPJS Ketenagakerjaan KC Pamekasan:\n\n🔗 ' + S.d.info.url + '\n👤 ID: *' + id + '*\n🔑 Kode akses: *' + kode + '*\n\nJaga kerahasiaan kode ini ya 🙏';
-  modal('<h3>Kode akses untuk ' + esc(nama) + '</h3><p>ID: <b>' + esc(id) + '</b></p><div class="kode">' + esc(kode) + '</div><p class="muted">Kode hanya tampil sekali ini. Kirim ke pengguna sekarang.</p>' +
-    '<div class="aksi"><button class="btn" data-tutup>Tutup</button>' + (noHp ? '<a class="btn wa" target="_blank" href="' + esc(waLink(noHp, t)) + '">Kirim lewat WA</a>' : '') + '</div>');
-}
-
-function formPengguna(u) {
-  var baru = !u.ID;
-  modal('<h3>' + (baru ? 'Tambah pengguna' : 'Ubah pengguna ' + esc(u.ID)) + '</h3>' +
-    '<div class="dua"><div><label class="f">Nama</label><input type="text" id="uNama" value="' + esc(u.Nama || '') + '"></div><div><label class="f">Peran</label><select id="uPeran">' + [['JAKON', 'Admin / pelaksana / direktur CV'], ['PEMKAB', 'Pemkab / instansi'], ['OWNER', 'Petugas KC (owner)']].map(function (p) { return '<option value="' + p[0] + '" ' + (u.Peran === p[0] ? 'selected' : '') + '>' + p[1] + '</option>'; }).join('') + '</select></div></div>' +
-    '<div class="dua"><div><label class="f">Instansi / jabatan</label><input type="text" id="uIns" value="' + esc(u.Instansi || '') + '"></div><div><label class="f">Nomor HP</label><input type="tel" id="uHp" value="' + esc(u.NoHP || '') + '"></div></div>' +
-    '<div id="uCvW"><label class="f">CV/PT yang boleh diakses</label>' + pilihCvHtml(String(u.CV_IDs || '').split(',').filter(String)) + '</div>' +
-    '<label class="f">Catatan</label><input type="text" id="uCat" value="' + esc(u.Catatan || '') + '">' +
-    '<div class="aksi">' + (!baru ? '<button class="btn bahaya" id="uAktif">' + (u.Aktif === 'Ya' ? 'Nonaktifkan' : 'Aktifkan') + '</button><button class="btn" id="uSesi">Keluarkan dari semua perangkat</button><button class="btn" id="uReset">Buat kode baru</button>' : '') +
-    '<button class="btn" data-tutup>Batal</button><button class="btn utama" id="uSimpan">Simpan</button></div>', function (bg) {
-      var ambilCv = pasangPilihCv(bg);
-      var sync = function () { $('#uCvW', bg).classList.toggle('hidden', $('#uPeran', bg).value !== 'JAKON'); };
-      $('#uPeran', bg).onchange = sync; sync();
-      $('#uSimpan', bg).onclick = function () {
-        var a = { id: u.ID, nama: $('#uNama', bg).value, peran: $('#uPeran', bg).value, instansi: $('#uIns', bg).value, noHp: $('#uHp', bg).value, catatan: $('#uCat', bg).value, cvIds: $('#uPeran', bg).value === 'JAKON' ? ambilCv() : [] };
-        if (!a.nama) return toast('Isi nama', true);
-        busy(this, call('simpanPengguna', a)).then(function (r) { bg.remove(); if (r.kode) tampilKode(a.nama, r.id, r.kode, a.noHp); else toast('Tersimpan'); return muatUlang(true); }).catch(function () { });
-      };
-      if (!baru) {
-        $('#uReset', bg).onclick = function () { if (!confirm('Buat kode baru? Kode lama tidak berlaku lagi.')) return; busy(this, call('resetKode', { id: u.ID })).then(function (r) { bg.remove(); tampilKode(u.Nama, u.ID, r.kode, u.NoHP); }).catch(function () { }); };
-        $('#uAktif', bg).onclick = function () { busy(this, call('aturAktif', { id: u.ID, aktif: u.Aktif !== 'Ya' })).then(function () { bg.remove(); toast('Tersimpan'); return muatUlang(true); }).catch(function () { }); };
-        $('#uSesi', bg).onclick = function () { busy(this, call('aturAktif', { id: u.ID })).then(function () { toast('Semua sesi pengguna ini sudah dikeluarkan'); }).catch(function () { }); };
-      }
-    });
-}
-
-function prosesAkses(a) {
-  modal('<h3>Permintaan akses: ' + esc(a.Nama) + '</h3><p>' + esc(a.Peran) + ' · ' + esc(a.Instansi || '-') + ' · ' + esc(a.NoHP) + '</p>' + (a.CV_Diurus ? '<div class="info">CV yang disebut: ' + esc(a.CV_Diurus) + '</div>' : '') +
-    (a.Peran === 'JAKON' ? '<label class="f">Hubungkan ke CV/PT</label>' + pilihCvHtml([]) + '<p class="muted">CV yang belum ada bisa didaftarkan pengguna lewat menu Pendaftaran setelah masuk.</p>' : '') +
-    '<div class="aksi"><button class="btn bahaya" id="aTolak">Tolak</button><button class="btn" data-tutup>Nanti</button><button class="btn utama" id="aSetuju">Setujui & buat kode</button></div>', function (bg) {
-      var ambil = a.Peran === 'JAKON' ? pasangPilihCv(bg) : function () { return []; };
-      $('#aSetuju', bg).onclick = function () { busy(this, call('prosesAkses', { id: a.ID, setuju: true, cvIds: ambil() })).then(function (r) { bg.remove(); tampilKode(r.nama, r.id, r.kode, r.noHp); return muatUlang(true); }).catch(function () { }); };
-      $('#aTolak', bg).onclick = function () { busy(this, call('prosesAkses', { id: a.ID, setuju: false })).then(function () { bg.remove(); toast('Ditolak'); return muatUlang(true); }).catch(function () { }); };
-    });
+  el.innerHTML = '<div class="info">Pengguna SIGAP Jakon (admin/direktur CV sebagai <b>Mitra</b>, Pemkab sebagai <b>Pengamat</b>, staf sebagai <b>Pelaksana</b>) ' +
+    'dibuat dan dicabut di <b>LENSA PK › Perangkat &amp; pengguna › SIGAP Jakon</b>. Permintaan akses di bawah juga disetujui di sana: kode undangan dikirim lewat WhatsApp ke nomor peminta.</div>' +
+    '<h3>Permintaan akses menunggu</h3>' + (d.akses.length ? d.akses.map(function (a) {
+      return '<div class="item"><div class="t">' + esc(a.Nama) + ' <span class="chip">' + esc(a.Peran === 'PEMKAB' ? 'Pengamat' : 'Mitra') + '</span></div><div class="s">' + esc(a.Instansi || '-') + ' · ' + esc(a.NoHP) + ' · ' + esc(a.Waktu) + '</div>' +
+        (a.CV_Diurus ? '<div class="s">CV diurus: ' + esc(a.CV_Diurus) + '</div>' : '') + '</div>';
+    }).join('') : '<p class="muted">Tidak ada permintaan akses yang menunggu.</p>');
 }
 
 function ownerSetelan(el) {
@@ -860,8 +1076,9 @@ function langkahBerkas(p) {
     var unduh = function (fmt, btn) {
       var dd = JSON.parse(JSON.stringify(draf.data || {}));
       dd.ID_PENGAJUAN = p.ID;
-      if (jenis === 'Pendaftaran') dd.KARYAWAN = kar.map(function (k) { return { nama: k.Nama, hp: k.NoHP, nik: k.NIK }; });
-      busy(btn, call('buatDokumen', { jenis: dok, cvId: draf.cvId || p.CV_ID, data: dd, format: fmt })).then(unduhBase64).catch(function () { });
+      // 2.0: daftar pekerja (NIK utuh) diminta saat dokumen dibuat; tidak disimpan di perangkat
+      var siap = jenis === 'Pendaftaran' ? call('pekerja', { id: p.ID }).then(function (l) { dd.KARYAWAN = l.map(function (k) { return { nama: k.Nama, hp: k.NoHP, nik: k.NIK }; }); }) : Promise.resolve();
+      busy(btn, siap.then(function () { return call('buatDokumen', { jenis: dok, cvId: draf.cvId || p.CV_ID, data: dd, format: fmt }); })).then(unduhBase64).catch(function () { });
     };
     if ($('#dPdf', bg)) { $('#dPdf', bg).onclick = function () { unduh('pdf', this); }; $('#dDocx', bg).onclick = function () { unduh('docx', this); }; }
     $$('[data-slot]', bg).forEach(function (inpF) {
@@ -901,8 +1118,9 @@ function jakonRiwayat(el) {
 /* ============================================================
    OWNER — verifikasi pengajuan per berkas
    ============================================================ */
+function namaPengaju(p) { var u = S.d.pengguna.filter(function (x) { return x.ID === p.UserID; })[0]; return u ? u.Nama : String(p.UserID || '').replace(/^U:/, ''); }
 function detailPengajuan(p) {
-  var u = S.d.pengguna.filter(function (x) { return x.ID === p.UserID; })[0] || {};
+  var u = S.d.pengguna.filter(function (x) { return x.ID === p.UserID; })[0] || { Nama: namaPengaju(p) };
   var data = p.Data || {}, berkas = p.Berkas || {}, cek = JSON.parse(JSON.stringify(p.Cek || {}));
   var kar = p.Karyawan || [];
   var proyek = p.Jenis === 'Daftarkan Proyek' || p.Jenis === 'Lapor Proyek';
@@ -967,16 +1185,16 @@ function ownerData(el) {
   el.innerHTML = '<h2>Data & sinkron</h2>' + kartuInaproc(false) +
     '<div class="kartu"><b>Unggah CSV / Excel</b><p class="muted">Bisa pilih beberapa file sekaligus (RUP + Realisasi). File RUP diproses lebih dulu.</p>' +
     '<div class="baris"><input type="file" id="dFile" accept=".csv,.xlsx,.xls" multiple style="flex:1"><button class="btn utama" id="dImpor">Impor</button></div><div id="dHasil" class="muted" style="margin-top:8px"></div></div>' +
-    '<div class="kartu"><b>Sinkron otomatis</b><p class="muted">Impor berkas di folder Inbox → sinkron LENSA PK → cocokkan nama pemenang. Berjalan tiap pagi bila jadwal harian dipasang.</p>' +
-    '<div class="baris"><button class="btn utama" id="dSinkron">Tarik & sinkron sekarang</button><button class="btn" id="dLensa">Sinkron LENSA saja</button><button class="btn" id="dKolom">Cek kolom LENSA</button>' + (d.inbox ? '<a class="btn" target="_blank" href="' + esc(d.inbox) + '">Folder Inbox ↗</a>' : '') + '</div>' +
+    '<div class="kartu"><b>Sinkron otomatis</b><p class="muted">Impor berkas di folder Inbox → status CV dari data KC (Gudang Laporan KC, semua pembina, dikirim LENSA PK setiap ada laporan baru) → cocokkan nama pemenang. Berjalan tiap pagi bila jadwal harian dipasang.</p>' +
+    '<div class="baris"><button class="btn utama" id="dSinkron">Tarik & sinkron sekarang</button><button class="btn" id="dLensa">Sinkron data KC saja</button><button class="btn" id="dKolom">Sumber data KC</button>' + (d.inbox ? '<a class="btn" target="_blank" href="' + esc(d.inbox) + '">Folder Inbox ↗</a>' : '') + '</div>' +
     '<div class="muted" style="margin-top:6px">Data RUP tersimpan: ' + (d.rupTotal || 0).toLocaleString('id-ID') + ' paket · paket konstruksi: ' + d.paket.length.toLocaleString('id-ID') + '</div></div>' +
     '<h3>Riwayat impor</h3><div id="tImp"></div>';
   $('#dSinkron').onclick = function () { sinkronDanTampil(this); };
-  $('#dLensa').onclick = function () { busy(this, call('sinkronLensa')).then(function (r) { toast('LENSA: ' + r.baru + ' baru, ' + r.diperbarui + ' diperbarui'); return muatUlang(true); }).catch(function () { }); };
+  $('#dLensa').onclick = function () { busy(this, call('sinkronLensa')).then(function (r) { toast(r.info ? r.info : 'Data KC: ' + r.baru + ' baru, ' + r.diperbarui + ' diperbarui'); return muatUlang(true); }).catch(function () { }); };
   $('#dKolom').onclick = function () {
     busy(this, call('cekKolomLensa')).then(function (r) {
-      modal('<h3>Kolom LENSA PK terbaca</h3><p>Tab: <b>' + esc(r.tab) + '</b> · ' + r.jumlahBaris + ' baris</p><table><tbody>' + Object.keys(r.kolom).map(function (k) { return '<tr><th>' + esc({ nama: 'Nama PK', npp: 'NPP', status: 'Status', bulan: 'Bulan tunggak', nominal: 'Nominal tunggakan', jenis: 'Jenis usaha / KBLI', alamat: 'Alamat', hp: 'Kontak HP' }[k]) + '</th><td>' + esc(r.kolom[k]) + '</td></tr>'; }).join('') + '</tbody></table>' +
-        '<p class="muted">Bila ada yang salah atau tidak ditemukan, isi judul kolom yang benar di Pengaturan (LENSA_KOLOM_…).</p><div class="aksi"><button class="btn utama" data-tutup>Tutup</button></div>');
+      modal('<h3>Sumber status CV</h3><p>Tab: <b>' + esc(r.tab) + '</b> · ' + r.jumlahBaris + ' baris</p><table><tbody>' + Object.keys(r.kolom).map(function (k) { return '<tr><th>' + esc({ nama: 'Nama PK', npp: 'NPP', status: 'Status', bulan: 'Bulan tunggak', nominal: 'Nominal tunggakan', jenis: 'Jenis usaha / KBLI', alamat: 'Alamat', hp: 'Kontak HP' }[k]) + '</th><td>' + esc(r.kolom[k]) + '</td></tr>'; }).join('') + '</tbody></table>' +
+        '<p class="muted">Data KC dikirim otomatis oleh LENSA PK (Gudang Laporan KC). Pengaturan LENSA_KOLOM_… hanya dipakai bila data KC belum pernah diterima.</p><div class="aksi"><button class="btn utama" data-tutup>Tutup</button></div>');
     }).catch(function () { });
   };
   $('#dImpor').onclick = function () {
@@ -997,27 +1215,6 @@ function ownerData(el) {
   tabel($('#tImp'), d.impor, [['Waktu', 'Waktu'], ['Sumber', 'Sumber'], ['File', 'Berkas'], ['Baris', 'Baris', 'num'], ['Relevan', 'Konstruksi', 'num'], ['Baru', 'Baru', 'num'], ['Diperbarui', 'Diperbarui', 'num'], ['Catatan', 'Catatan']], { id: 'imp' });
 }
 
-/* ============================================================
-   MULAI
-   ============================================================ */
-(function mulai() {
-  var t = store('sigap_token');
-  if (!t) return layarLogin();
-  S.token = t;
-  // Tampilkan data terakhir dari perangkat lebih dulu, lalu segarkan dari server di belakang layar.
-  var c = bacaCache();
-  if (c) { S.d = c.d; S.me = c.d.me; tampilPeran(); tandaSegar(c.t); }
-  call('awal').then(function (d) {
-    S.d = d; S.me = d.me; simpanCache(d);
-    if (c && !bolehGanti()) { tandaSegar(0, true); return; }
-    tampilPeran();
-  }).catch(function (e) {
-    if (!S.token) return; // sesi habis → sudah ke layar masuk
-    if (c) { tandaSegar(c.t, false, e.message); return; }
-    S.token = null; store('sigap_token', null); layarLogin();
-  });
-})();
-
 /** Jangan timpa layar bila pengguna sudah mulai mengetik/memilih sesuatu. */
 document.addEventListener('input', function () { S.sibuk = true; }, true);
 function bolehGanti() { return !S.sibuk; }
@@ -1027,11 +1224,51 @@ function tandaSegar(t, siap, err) {
   if (siap) { el.innerHTML = 'Data baru tersedia. <a href="#" id="segarKlik">Muat ulang</a>'; $('#segarKlik').onclick = function (e) { e.preventDefault(); tampilPeran(); }; return; }
   if (err) {
     el.textContent = 'Sedang offline / server belum menjawab. Menampilkan data tersimpan ' + new Date(t).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + '. Akan disegarkan otomatis saat koneksi kembali.';
-    window.addEventListener('online', function sekali() { window.removeEventListener('online', sekali); call('awal').then(function (d) { S.d = d; S.me = d.me; simpanCache(d); if (bolehGanti()) tampilPeran(); else tandaSegar(0, true); }).catch(function () { }); });
+    window.addEventListener('online', function sekali() { window.removeEventListener('online', sekali); call('awal').then(function (d) { siapkanData(d); simpanCache(d); if (bolehGanti()) tampilPeran(); else tandaSegar(0, true); }).catch(function () { }); });
     return;
   }
   el.textContent = 'Menampilkan data tersimpan, sedang menyegarkan…';
 }
+
+/* === 99-mulai.js === */
+/* ----------------------------------------------------------------------
+ *  SIGAP Jakon 2.0 · mulai: buka penyimpanan (PIN bila ada) → kode undangan bila belum masuk → tampilkan data
+ *  tersimpan lebih dulu (≤ 7 hari), lalu segarkan dari server di belakang layar.
+ * ---------------------------------------------------------------------- */
+/** Bentuk data awal dari server disamakan untuk semua peran (Pelaksana tanpa pengaturan & akses, Pengamat tanpa pengajuan). */
+function siapkanData(d) {
+  d.cv = d.cv || []; d.paket = d.paket || []; d.pengajuan = d.pengajuan || []; d.pengguna = d.pengguna || []; d.akses = d.akses || []; d.impor = d.impor || [];
+  d.info = d.info || {};
+  S.d = d; S.me = d.me || {};
+  return d;
+}
+
+async function mulaiSigap() {
+  bersihkanVersiLama();
+  await muatDb();
+  if (SIMPAN.rekTerkunci) {
+    var ok = await layarPin();
+    if (!ok) return layarMasuk('Data di perangkat ini sudah dihapus. Masuk lagi dengan kode undangan baru dari petugas KC.');
+  }
+  if (!terdaftar()) return layarMasuk();
+  var segar = DB.awal && Date.now() - (DB.sinkron.terakhirOk || 0) < KUNCI_SINKRON_MS;
+  if (segar) { siapkanData(DB.awal); tampilPeran(); tandaSegar(DB.awalT); }
+  else $('#app').innerHTML = '<div class="loading">' + (DB.awal ? 'Sudah lebih dari ' + HARI_KUNCI + ' hari tidak tersambung. Menyambungkan ke server…' : 'Memuat data…') + '</div>';
+  try {
+    var d = await call('awal');
+    siapkanData(d); simpanCache(d);
+    if (segar && !bolehGanti()) { tandaSegar(0, true); return; }
+    tampilPeran();
+  } catch (e) {
+    if (!terdaftar()) return; // dicabut → layar masuk sudah tampil
+    if (segar) { tandaSegar(DB.awalT, false, e.message); return; }
+    $('#app').innerHTML = kartuGerbang('<div class="info" style="margin-top:14px">' + esc(e.message) + '</div><p class="muted">Data tersimpan tidak ditampilkan karena perangkat ini ' +
+      (DB.awal ? 'lebih dari ' + HARI_KUNCI + ' hari tidak tersambung' : 'belum pernah memuat data') + '. Sambungkan internet lalu coba lagi.</p>' +
+      '<div style="margin-top:12px"><button class="btn utama" onclick="location.reload()">Coba lagi</button></div>');
+  }
+}
+mulaiSigap();
+
 </script>
 <script>
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () { });
