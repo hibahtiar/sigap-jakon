@@ -108,6 +108,20 @@ select.st-baris{width:auto;min-width:150px;padding:5px 8px;font-size:13px}
 /* 2.0.3: tombol Kunci & Hapus akses tidak terlipat di HP */
 .top .btn,.top .judul{white-space:nowrap}
 @media(max-width:720px){.top{gap:8px;padding:8px 10px}}
+/* 2.1.0 geotag: peta ringan (ubin OpenStreetMap) & pin */
+.peta-wadah{position:relative;height:240px;border:1px solid var(--garis);border-radius:var(--r);overflow:hidden;background:#E8E4DC;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;margin-top:8px}
+.peta-wadah.besar{height:min(60vh,520px)}
+.peta-geser,.peta-ubin,.peta-titik{position:absolute;inset:0}
+.peta-ubin img{position:absolute;width:256px;height:256px;max-width:none;pointer-events:none}
+.peta-tombol{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:4px;z-index:2}
+.peta-tombol button{width:34px;height:34px;border:1px solid var(--garis);background:#fff;border-radius:8px;font-size:19px;font-weight:700;line-height:1;cursor:pointer;color:var(--teks)}
+.peta-hak{position:absolute;right:0;bottom:0;background:rgba(255,255,255,.85);font-size:10.5px;padding:1px 6px;border-top-left-radius:6px;z-index:2}
+.pin{position:absolute;width:30px;height:38px;margin:-38px 0 0 -15px;border:0;background:none;padding:0;cursor:pointer;z-index:1}
+.pin span{position:absolute;left:3px;top:0;width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#15803D;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.pin b{position:absolute;left:0;top:4px;width:30px;text-align:center;color:#fff;font-size:11px;font-weight:800}
+.pin.belum span{background:#D97706}.pin.tidak span{background:var(--merah)}.pin.lama span{background:#78716C;opacity:.75}.pin.pilih span{background:var(--biru)}
+.lok-kartu{margin-top:10px;padding-top:10px;border-top:1px dashed var(--garis)}
+.peta-kecil{height:180px}
 </style>
 </head>
 <body>
@@ -166,7 +180,7 @@ var KitSandi = (function () {
  *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
  *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
  * ---------------------------------------------------------------------- */
-var VERSI_APP = '2.0.3';
+var VERSI_APP = '2.1.0';
 var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
 var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
 
@@ -456,6 +470,8 @@ function waLink(no, teks) { return 'https://api.whatsapp.com/send?phone=' + hp62
 
 function chipCls(s) {
   s = String(s || '').toLowerCase();
+  if (s === 'tidak cocok') return 'menunggak'; // 2.1.0 geotag
+  if (s === 'dicek petugas') return 'aktif';
   if (s.indexOf('menunggak') >= 0 || s.indexOf('ditolak') >= 0 || s.indexOf('dibatalkan') >= 0) return 'menunggak';
   if (s.indexOf('nonaktif') >= 0) return 'nonaktif';
   if (s.indexOf('belum') >= 0 || s.indexOf('ditunda') >= 0 || s.indexOf('perbaikan') >= 0 || s.indexOf('mirip') >= 0 || s.indexOf('tidak ada') >= 0 || s.indexOf('draf') >= 0) return 'belum';
@@ -622,6 +638,7 @@ function tampilOwner() {
     ['ring', 'Ringkasan', ownerRingkasan],
     ['cv', 'CV/PT', ownerCv],
     ['proyek', 'Proyek', ownerProyek],
+    ['peta', 'Peta', tabPeta, (d.lokasi || []).filter(function (l) { return l.Status === 'Belum dicek'; }).length || ''],
     ['peng', 'Pengajuan', ownerPengajuan, nPeng || ''],
     S.me.peranSuite === 'Pemilik' ? ['user', 'Akses', ownerAkses, d.akses.length || ''] : null,
     ['data', 'Data', ownerData],
@@ -706,10 +723,12 @@ function detailCv(c) {
     '<label class="f">Alamat</label><input type="text" id="cAlamat" value="' + esc(c.Alamat || '') + '">' +
     '<label class="f">Status manual <small>(mengalahkan status otomatis; kosongkan untuk ikut data KC)</small></label><select id="cStatus"><option value="">— ikut status otomatis —</option>' + STATUS_CV.concat(['Terdaftar – binaan pembina lain']).map(function (s) { return '<option ' + (c.StatusManual === s ? 'selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select>' +
     '<label class="f">Catatan</label><textarea id="cCat">' + esc(c.Catatan || '') + '</textarea>' +
+    (baru ? '' : '<h3>Lokasi kantor</h3><div id="cLok"></div>') +
     (paket.length ? '<h3>Paket (' + paket.length + ')</h3>' + paket.map(function (p) { return '<div class="muted">• ' + esc(p.NamaPaket) + ' — ' + jt(p.NilaiKontrak || p.Pagu) + ' ' + chip(p.StatusPemkab) + '</div>'; }).join('') : '') +
     (users.length ? '<h3>Pengguna terhubung</h3>' + users.map(function (u) { return '<div class="muted">• ' + esc(u.Nama) + ' (' + esc(u.ID) + ') ' + esc(u.NoHP) + '</div>'; }).join('') : '') +
     '<div class="aksi">' + (c.Kontak ? '<a class="btn wa" target="_blank" href="' + esc(waLink(c.Kontak, 'Halo, kami dari BPJS Ketenagakerjaan KC Pamekasan 👋 terkait kepesertaan ' + c.Nama + '.')) + '">WhatsApp</a>' : '') +
     '<button class="btn" data-tutup>Tutup</button><button class="btn utama" id="cSimpan">Simpan</button></div>', function (bg) {
+      if (!baru) pasangLokasi($('#cLok', bg), 'Kantor', c, { peta: true });
       $('#cSimpan', bg).onclick = function () {
         var a = Object.assign({ id: c.ID, NPP: $('#cNpp', bg).value, Kontak: $('#cKontak', bg).value, Alamat: $('#cAlamat', bg).value, StatusManual: $('#cStatus', bg).value, Catatan: $('#cCat', bg).value }, ambilKontakCv(bg));
         if (baru) { a.Nama = $('#cNama', bg).value; if (!a.Nama) return toast('Isi nama', true); }
@@ -769,9 +788,11 @@ function detailPaket(p, stAwal) {
     (p.KetPemkab ? '<tr><th>Keterangan</th><td>' + esc(p.KetPemkab) + '</td></tr>' : '') +
     '<tr><th>Status CV</th><td>' + (chip(p.StatusCV) || '-') + '</td></tr>' + (p.DitandaiPada ? '<tr><th>Terakhir ditandai</th><td>' + esc(p.DitandaiPada) + (p.DitandaiOleh ? ' oleh ' + esc(p.DitandaiOleh) : '') + '</td></tr>' : '') + '</tbody></table>' +
     (owner && p.Pemenang ? '<label class="f">Tautkan pemenang ke CV <small>(' + esc(p.StatusCocok || '-') + ')</small></label><div class="baris"><select id="pCv" style="flex:1">' + cvOpt + '</select><button class="btn" id="pTaut">Simpan tautan</button></div>' : '') +
+    '<h3 style="margin-top:16px">Lokasi proyek</h3><div id="pLok"></div>' +
     formTandai(p, stAwal) +
     '<div class="aksi">' + (owner && p.KontakCV ? '<a class="btn wa" target="_blank" href="' + esc(waLink(p.KontakCV, pesanTagih(p))) + '">WA ke CV</a>' : '') + '<button class="btn" data-tutup>Tutup</button><button class="btn utama" id="tSimpan">Simpan status</button></div>', function (bg) {
       pasangTandai(bg, p);
+      pasangLokasi($('#pLok', bg), 'Proyek', p, { peta: true });
       if ($('#pTaut', bg)) $('#pTaut', bg).onclick = function () { busy(this, call('tautkanPaket', { paketId: p.ID, cvId: $('#pCv', bg).value })).then(function () { bg.remove(); toast('Tautan tersimpan'); return muatUlang(true); }).catch(function () { }); };
     });
 }
@@ -822,7 +843,7 @@ function ownerSetelan(el) {
    PEMKAB
    ============================================================ */
 function tampilPemkab() {
-  kerangka([['rekap', 'Rekap', pemkabRekap], ['proyek', 'Proyek', pemkabProyek], ['cv', 'Status CV', pemkabCv]]);
+  kerangka([['rekap', 'Rekap', pemkabRekap], ['proyek', 'Proyek', pemkabProyek], ['peta', 'Peta', tabPeta], ['cv', 'Status CV', pemkabCv]]);
 }
 
 /** 2.0.1: status yang dihitung "terealisasi" (proyek sudah jalan). */
@@ -976,12 +997,14 @@ function jakonBeranda(el) {
       var saran = c.Status === 'Menunggak' ? 'Ada tunggakan iuran. Bila sedang tidak ada proyek, ajukan penonaktifan agar tagihan tidak terus berjalan.' : c.Status === 'Nonaktif' ? 'Kepesertaan nonaktif. Bila mendapat proyek baru, daftarkan proyeknya agar perlindungan aktif kembali.' : c.Status === 'Terdaftar aktif' ? 'Kepesertaan tertib. Terima kasih!' : 'Data perusahaan belum ditemukan di sistem kami. Hubungi petugas KC.';
       var kontak = KONTAK_CV.filter(function (k) { return c[k[1]] || c[k[2]]; }).map(function (k) { return k[0] + ': ' + esc(c[k[1]] || '-') + (c[k[2]] ? ' · ' + esc(c[k[2]]) : ''); });
       return '<div class="kartu"><div class="baris"><b style="font-size:16px">' + esc(c.Nama) + '</b>' + chip(c.Status) + '</div><div class="muted">NPP ' + esc(c.NPP || '-') + (c.Status === 'Menunggak' && c.BulanTunggak ? ' · menunggak ' + esc(c.BulanTunggak) + ' bulan' : '') + '</div><p style="margin:8px 0 0">' + esc(saran) + '</p>' +
-        '<div class="baris" style="margin-top:8px;align-items:flex-start"><div class="muted" style="flex:1">' + (kontak.length ? kontak.join('<br>') : 'Kontak pelaksana, admin, dan direktur belum diisi.') + '</div><button class="btn kecil" data-kontak="' + i + '">' + (kontak.length ? 'Ubah kontak' : 'Isi kontak') + '</button></div></div>';
+        '<div class="baris" style="margin-top:8px;align-items:flex-start"><div class="muted" style="flex:1">' + (kontak.length ? kontak.join('<br>') : 'Kontak pelaksana, admin, dan direktur belum diisi.') + '</div><button class="btn kecil" data-kontak="' + i + '">' + (kontak.length ? 'Ubah kontak' : 'Isi kontak') + '</button></div>' +
+        '<div class="lok-kartu"><b>Lokasi kantor</b><div data-lokcv="' + i + '"></div></div></div>';
     }).join('') +
     '<h3>Proyek perusahaan Anda</h3><p class="muted" style="margin-top:-6px">Klik proyek untuk melihat rinciannya dan mengajukan pendaftaran proyek.</p><div id="tJp"></div>' +
     '<div class="info">Tidak sedang ada proyek? Ajukan <b>penonaktifan</b> lewat menu Ajukan: surat dan berita acara sudah terisi otomatis. Begitu dapat proyek lagi, <b>daftarkan proyeknya</b> (NPP, penanggung jawab, SPK, SPMK) dan kepesertaan aktif kembali.</div>' +
     (d.info.wa ? '<a class="btn wa" target="_blank" href="' + esc(waLink(d.info.wa, pesanTanyaPembina())) + '">Tanya pembina lewat WA</a>' : '');
   $$('[data-kontak]', el).forEach(function (b) { b.onclick = function () { ubahKontakCv(d.cv[+b.dataset.kontak]); }; });
+  $$('[data-lokcv]', el).forEach(function (w) { pasangLokasi(w, 'Kantor', d.cv[+w.dataset.lokcv]); });
   tabel($('#tJp'), d.paket, [[function (r) { return esc(r.KodeRUP || '-'); }, 'Kode RUP'], ['NamaPaket', 'Paket', 'judul-hp'], ['Satker', 'Pemilik'], [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return chip(statusJakonPaket(r)); }, 'Jakon']],
     { id: 'jp', hp: 1, klik: detailProyekMitra, kosong: 'Belum ada proyek tercatat atas nama perusahaan Anda' });
 }
@@ -1005,9 +1028,11 @@ function detailProyekMitra(p) {
       ['Jenis / metode', [p.JenisPengadaan, p.Metode].filter(Boolean).join(' / ')], ['Tahun', p.Tahun], ['Lokasi', p.Lokasi], ['Tahap', p.Tahap], ['Status pelaksanaan', p.StatusPemkab]]
       .filter(function (x) { return x[1] !== undefined && x[1] !== null && x[1] !== '' && x[1] !== '-'; }).map(function (x) { return '<tr><th style="width:40%">' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
     (nilaiP ? '<div class="kartu" style="margin-top:10px"><div class="baris"><b style="flex:1">Perkiraan iuran Jakon</b><b>' + rp(iur.total) + '</b></div><div class="muted">JKK ' + rp(iur.jkk) + ' + JKM ' + rp(iur.jkm) + ' · dari nilai ' + rp(nilaiP) + ' (dianggap termasuk PPN 11%) · <a href="#" id="mpSim">rincian / simulasi</a></div></div>' : '') +
+    '<h3>Lokasi proyek</h3><div id="mpLok"></div>' +
     (p.NoJakon ? '<div class="info">Proyek ini sudah terdaftar di program Jasa Konstruksi. Terima kasih!</div>' : a ? '<div class="info">Pendaftaran proyek ini sudah diajukan (' + esc(a.ID) + ', status <b>' + esc(a.Status) + '</b>).</div>' :
       '<div class="info kuning">Proyek ini belum didaftarkan ke program Jasa Konstruksi BPJS Ketenagakerjaan. Ajukan lewat pembina (cukup NPP, penanggung jawab proyek, SPK, dan SPMK), atau daftar sendiri di situs resmi ' + tautanEjakon('E-Jakon') + '.</div>') +
     '<div class="aksi"><button class="btn" data-tutup>Tutup</button>' + (p.NoJakon ? '' : a ? '<button class="btn utama" id="mpLihat">Lihat pengajuan</button>' : '<button class="btn utama" id="mpAjukan">Ajukan pendaftaran proyek</button>') + '</div>', function (bg) {
+      pasangLokasi($('#mpLok', bg), 'Proyek', p, { peta: true });
       if ($('#mpLihat', bg)) $('#mpLihat', bg).onclick = function () { bg.remove(); langkahBerkas(a); };
       if ($('#mpSim', bg)) $('#mpSim', bg).onclick = function (e) { e.preventDefault(); formSimulasi(nilaiP); };
       if ($('#mpAjukan', bg)) $('#mpAjukan', bg).onclick = function () { bg.remove(); S.go('ajukan'); formAjuan('Daftarkan Proyek', { cvId: p.CV_ID, paketId: p.ID }); };
@@ -1519,6 +1544,283 @@ function formSimulasi(nilaiAwal) {
     });
 }
 
+/* === 55-lokasi.js === */
+/* ======================================================================
+ *  SIGAP Jakon 2.1 · GEOTAG (LENSA Suite Tahap 4C, keputusan 21 Nov 2026)
+ *  - Titik lokasi kantor CV/PT & lokasi proyek.
+ *  - Mitra: GPS di tempat + wajib 1 foto → "Belum dicek".
+ *  - Petugas (Pemilik/Pelaksana): GPS atau pilih/geser di peta, foto pilihan → "Dicek petugas"; mengecek titik Mitra.
+ *  - Pengamat: hanya lokasi proyek (tanpa foto & catatan).
+ *  - Peta ringan buatan sendiri di atas ubin OpenStreetMap + tautan Google Maps per titik.
+ * ====================================================================== */
+var PETA_UBIN = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+var PUSAT_KC = { lat: -7.1568, lng: 113.4746 }; // Pamekasan
+
+function proyeksi(lat, lng, z) {
+  var n = 256 * Math.pow(2, z), s = Math.sin(Math.max(-85, Math.min(85, lat)) * Math.PI / 180);
+  return { x: (lng + 180) / 360 * n, y: (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n };
+}
+function proyeksiBalik(x, y, z) {
+  var n = 256 * Math.pow(2, z), m = Math.PI - 2 * Math.PI * y / n;
+  return { lat: 180 / Math.PI * Math.atan(0.5 * (Math.exp(m) - Math.exp(-m))), lng: x / n * 360 - 180 };
+}
+
+/**
+ * Peta ringan. opsi: { titik: [{lat,lng,kelas,huruf,judul,klik}], saatPilih: fn(lat,lng) — ketuk peta untuk memilih titik }.
+ * Hasil: { setTitik(arr), pusat(lat,lng,z), pilih(lat,lng), cocokkan(), gambar() }
+ */
+function buatPeta(el, opsi) {
+  opsi = opsi || {};
+  var st = { z: 12, cx: 0, cy: 0, titik: opsi.titik || [], pilih: null };
+  el.classList.add('peta-wadah');
+  el.innerHTML = '<div class="peta-geser"><div class="peta-ubin"></div><div class="peta-titik"></div></div>' +
+    '<div class="peta-tombol"><button type="button" data-z="1" aria-label="Perbesar">+</button><button type="button" data-z="-1" aria-label="Perkecil">−</button></div>' +
+    '<div class="peta-hak">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a></div>';
+  var geser = el.querySelector('.peta-geser'), ubin = el.querySelector('.peta-ubin'), lap = el.querySelector('.peta-titik');
+  var ukuran = function () { return { w: el.clientWidth || 300, h: el.clientHeight || 240 }; };
+  function gambar() {
+    var u = ukuran(), z = st.z, n = Math.pow(2, z), x0 = st.cx - u.w / 2, y0 = st.cy - u.h / 2, html = '';
+    for (var tx = Math.floor(x0 / 256); tx <= Math.floor((x0 + u.w) / 256); tx++) for (var ty = Math.floor(y0 / 256); ty <= Math.floor((y0 + u.h) / 256); ty++) {
+      if (ty < 0 || ty >= n) continue;
+      html += '<img alt="" draggable="false" referrerpolicy="strict-origin-when-cross-origin" src="' + PETA_UBIN.replace('{z}', z).replace('{x}', ((tx % n) + n) % n).replace('{y}', ty) +
+        '" style="left:' + Math.round(tx * 256 - x0) + 'px;top:' + Math.round(ty * 256 - y0) + 'px">';
+    }
+    ubin.innerHTML = html;
+    var semua = st.titik.concat(st.pilih ? [st.pilih] : []);
+    lap.innerHTML = semua.map(function (t, i) {
+      var p = proyeksi(t.lat, t.lng, z);
+      return '<button type="button" class="pin ' + (t.kelas || '') + '" data-i="' + i + '" title="' + esc(t.judul || '') + '" style="left:' + Math.round(p.x - x0) + 'px;top:' + Math.round(p.y - y0) + 'px"><span></span><b>' + esc(t.huruf || '') + '</b></button>';
+    }).join('');
+    $$('.pin', lap).forEach(function (b) { var t = semua[+b.dataset.i]; b.onclick = function (e) { e.stopPropagation(); if (t && t.klik) t.klik(); }; });
+    geser.style.transform = '';
+  }
+  function pusat(lat, lng, z) { if (z) st.z = Math.max(5, Math.min(18, z)); var p = proyeksi(lat, lng, st.z); st.cx = p.x; st.cy = p.y; gambar(); }
+  function zoom(dz, px, py) {
+    var u = ukuran(); px = px === undefined ? u.w / 2 : px; py = py === undefined ? u.h / 2 : py;
+    var g = proyeksiBalik(st.cx - u.w / 2 + px, st.cy - u.h / 2 + py, st.z), z = Math.max(5, Math.min(18, st.z + dz));
+    if (z === st.z) return;
+    st.z = z; var p = proyeksi(g.lat, g.lng, z); st.cx = p.x - (px - u.w / 2); st.cy = p.y - (py - u.h / 2); gambar();
+  }
+  function cocokkan() {
+    var t = st.titik.concat(st.pilih ? [st.pilih] : []);
+    if (!t.length) return pusat(PUSAT_KC.lat, PUSAT_KC.lng, 11);
+    if (t.length === 1) return pusat(t[0].lat, t[0].lng, 16);
+    var u = ukuran(), z = 17;
+    for (; z > 5; z--) {
+      var ps = t.map(function (x) { return proyeksi(x.lat, x.lng, z); });
+      var xs = ps.map(function (p) { return p.x; }), ys = ps.map(function (p) { return p.y; });
+      if (Math.max.apply(null, xs) - Math.min.apply(null, xs) < u.w - 60 && Math.max.apply(null, ys) - Math.min.apply(null, ys) < u.h - 70) break;
+    }
+    var lat = t.reduce(function (s, x) { return s + x.lat; }, 0) / t.length, lng = t.reduce(function (s, x) { return s + x.lng; }, 0) / t.length;
+    var p0 = t.map(function (x) { return proyeksi(x.lat, x.lng, z); });
+    st.z = z; st.cx = (Math.min.apply(null, p0.map(function (p) { return p.x; })) + Math.max.apply(null, p0.map(function (p) { return p.x; }))) / 2;
+    st.cy = (Math.min.apply(null, p0.map(function (p) { return p.y; })) + Math.max.apply(null, p0.map(function (p) { return p.y; }))) / 2 - 10;
+    if (!isFinite(st.cx)) return pusat(lat, lng, 12);
+    gambar();
+  }
+  // geser dengan jari / tetikus; ketuk = pilih titik (bila diizinkan)
+  var tarik = null;
+  el.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('.pin, .peta-tombol, .peta-hak')) return;
+    tarik = { x: e.clientX, y: e.clientY, dx: 0, dy: 0, id: e.pointerId };
+    try { el.setPointerCapture(e.pointerId); } catch (x) { /* diam */ }
+  });
+  el.addEventListener('pointermove', function (e) {
+    if (!tarik || e.pointerId !== tarik.id) return;
+    tarik.dx = e.clientX - tarik.x; tarik.dy = e.clientY - tarik.y;
+    geser.style.transform = 'translate(' + tarik.dx + 'px,' + tarik.dy + 'px)';
+  });
+  var lepas = function (e) {
+    if (!tarik || e.pointerId !== tarik.id) return;
+    var t = tarik; tarik = null;
+    if (Math.abs(t.dx) + Math.abs(t.dy) > 6) { st.cx -= t.dx; st.cy -= t.dy; gambar(); return; }
+    geser.style.transform = '';
+    if (opsi.saatPilih && e.type === 'pointerup') {
+      var r = el.getBoundingClientRect(), u = ukuran();
+      var g = proyeksiBalik(st.cx - u.w / 2 + (e.clientX - r.left), st.cy - u.h / 2 + (e.clientY - r.top), st.z);
+      api.pilih(g.lat, g.lng, true); opsi.saatPilih(g.lat, g.lng);
+    }
+  };
+  el.addEventListener('pointerup', lepas); el.addEventListener('pointercancel', lepas);
+  el.addEventListener('dblclick', function (e) { if (e.target.closest('.pin, .peta-tombol')) return; var r = el.getBoundingClientRect(); zoom(1, e.clientX - r.left, e.clientY - r.top); });
+  $$('.peta-tombol button', el).forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); zoom(+b.dataset.z); }; });
+  var api = {
+    setTitik: function (arr) { st.titik = arr || []; gambar(); },
+    pusat: pusat,
+    pilih: function (lat, lng, tanpaPusat) { st.pilih = { lat: lat, lng: lng, kelas: 'pilih', judul: 'Titik baru' }; if (tanpaPusat) gambar(); else pusat(lat, lng, Math.max(st.z, 16)); },
+    cocokkan: cocokkan, gambar: gambar
+  };
+  setTimeout(function () { if (!st.cx) cocokkan(); else gambar(); }, 0);
+  return api;
+}
+
+/* ---------------- data lokasi ---------------- */
+function lokasiAktif(jenis, id) {
+  return (S.d.lokasi || []).filter(function (l) { return l.Jenis === jenis && String(jenis === 'Kantor' ? l.CV_ID : l.PAKET_ID) === String(id); })[0] || null;
+}
+function gantiLokasi(l) {
+  var kunci = l.Jenis === 'Kantor' ? 'CV_ID' : 'PAKET_ID';
+  S.d.lokasi = (S.d.lokasi || []).filter(function (x) { return !(x.Jenis === l.Jenis && String(x[kunci]) === String(l[kunci])); }).concat([l]);
+  simpanCache(S.d);
+  // lencana tab Peta (petugas) ikut diperbarui tanpa memuat ulang
+  var t = $('#nav [data-t="peta"]'), n = S.d.lokasi.filter(function (x) { return x.Status === 'Belum dicek'; }).length, bd = t && $('.badge', t);
+  if (t && S.me.peran === 'OWNER') { if (n && !bd) { bd = document.createElement('span'); bd.className = 'badge'; t.appendChild(bd); } if (bd) { if (n) bd.textContent = n; else bd.remove(); } }
+}
+function urlMaps(l) { return 'https://www.google.com/maps/search/?api=1&query=' + Number(l.Lat).toFixed(6) + ',' + Number(l.Lng).toFixed(6); }
+function kelasPin(l) { return l.Status === 'Tidak cocok' ? 'tidak' : l.Status === 'Belum dicek' ? 'belum' : 'dicek'; }
+function namaSasaran(l) {
+  if (l.Jenis === 'Kantor') { var c = S.d.cv.filter(function (x) { return x.ID === l.CV_ID; })[0]; return c ? c.Nama : 'CV/PT'; }
+  var p = S.d.paket.filter(function (x) { return x.ID === l.PAKET_ID; })[0]; return p ? p.NamaPaket : 'Proyek';
+}
+function ringkasLokasi(l) {
+  var cara = l.Sumber === 'Peta' ? 'dipilih di peta' : l.Akurasi ? 'GPS ±' + l.Akurasi + ' m' : '';
+  return '<div class="baris" style="flex-wrap:wrap;gap:6px">' + chip(l.Status) + '<span class="muted">' + esc([l.Waktu, l.OlehNama ? 'oleh ' + l.OlehNama : '', cara, l.AdaFoto ? 'ada foto' : ''].filter(Boolean).join(' · ')) + '</span></div>' +
+    (l.Catatan ? '<div class="muted">Catatan: ' + esc(l.Catatan) + '</div>' : '') +
+    (l.CatatanCek ? '<div class="muted" style="color:' + (l.Status === 'Tidak cocok' ? 'var(--merah)' : 'inherit') + '">Petugas: ' + esc(l.CatatanCek) + '</div>' : '');
+}
+
+/** Bagian "Lokasi kantor / proyek" di kartu & jendela rincian. opsi.peta = tampilkan peta kecil. */
+function pasangLokasi(el, jenis, x, opsi) {
+  if (!el) return;
+  opsi = opsi || {};
+  var owner = S.me.peran === 'OWNER', bisaTulis = (owner || S.me.peran === 'JAKON') && S.me.hak !== 'Lihat';
+  var l = lokasiAktif(jenis, x.ID), nama = jenis === 'Kantor' ? 'kantor' : 'proyek';
+  el.innerHTML = (l ? ringkasLokasi(l) : '<div class="muted">Lokasi ' + nama + ' belum direkam.</div>') +
+    (l && opsi.peta ? '<div class="peta-kecil"></div>' : '') +
+    '<div class="baris" style="margin-top:6px;flex-wrap:wrap">' + (l ? '<a class="btn kecil" target="_blank" rel="noopener" href="' + esc(urlMaps(l)) + '">Buka di Google Maps ↗</a>' : '') +
+    (owner && l && l.FotoURL ? '<a class="btn kecil" target="_blank" rel="noopener" href="' + esc(l.FotoURL) + '">Lihat foto</a>' : '') +
+    (owner && bisaTulis && l && l.Status === 'Belum dicek' ? '<button type="button" class="btn kecil utama" data-l="cek">Cek titik ini</button>' : '') +
+    (bisaTulis ? '<button type="button" class="btn kecil" data-l="rekam">📍 ' + (l ? 'Rekam ulang' : 'Rekam lokasi ' + nama) + '</button>' : '') + '</div>';
+  var ulang = function () { pasangLokasi(el, jenis, x, opsi); if (opsi.setelah) opsi.setelah(); };
+  if (l && opsi.peta) buatPeta(el.querySelector('.peta-kecil'), { titik: [{ lat: l.Lat, lng: l.Lng, kelas: kelasPin(l), huruf: jenis === 'Kantor' ? 'K' : 'P', judul: nama }] });
+  var bc = el.querySelector('[data-l="cek"]'); if (bc) bc.onclick = function () { formCekLokasi(l, ulang); };
+  var br = el.querySelector('[data-l="rekam"]'); if (br) br.onclick = function () { formRekamLokasi(jenis, x, ulang); };
+}
+
+/* ---------------- GPS & foto ---------------- */
+/** Ambil titik GPS terbaik dalam ±12 detik (selesai lebih cepat bila ketelitian ≤ 20 m). */
+function ambilGps() {
+  return new Promise(function (ok, gagal) {
+    if (!navigator.geolocation) return gagal(new Error('Perangkat ini tidak mendukung GPS'));
+    var terbaik = null, selesai = false, id = null, waktu = null;
+    var akhiri = function (galat) {
+      if (selesai) return; selesai = true; clearTimeout(waktu); if (id !== null) navigator.geolocation.clearWatch(id);
+      if (terbaik) ok(terbaik); else gagal(galat || new Error('Lokasi tidak didapat. Nyalakan GPS/lokasi lalu coba lagi.'));
+    };
+    id = navigator.geolocation.watchPosition(function (p) {
+      var x = { lat: p.coords.latitude, lng: p.coords.longitude, akurasi: Math.max(1, Math.round(p.coords.accuracy)) };
+      if (!terbaik || x.akurasi < terbaik.akurasi) terbaik = x;
+      if (x.akurasi <= 20) akhiri();
+    }, function (e) {
+      akhiri(new Error(e && e.code === 1 ? 'Izin lokasi ditolak. Izinkan akses lokasi untuk halaman SIGAP di pengaturan browser, lalu coba lagi.' : 'Lokasi tidak didapat. Nyalakan GPS lalu coba lagi di tempat terbuka.'));
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    waktu = setTimeout(function () { akhiri(); }, 12000);
+  });
+}
+/** Foto diperkecil di HP (sisi terpanjang 1280 px, JPEG) agar unggah hemat kuota. */
+function bacaFoto(file) {
+  return new Promise(function (ok, gagal) {
+    if (!file || !/^image\//.test(file.type)) return gagal(new Error('Pilih foto (JPG/PNG)'));
+    var r = new FileReader();
+    r.onerror = function () { gagal(new Error('Gagal membaca foto')); };
+    r.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        ok({ base64: c.toDataURL('image/jpeg', 0.8).split(',')[1], mime: 'image/jpeg' });
+      };
+      img.onerror = function () { gagal(new Error('Foto tidak bisa dibaca. Coba foto ulang.')); };
+      img.src = r.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
+
+/* ---------------- rekam & cek ---------------- */
+function formRekamLokasi(jenis, x, selesai) {
+  var owner = S.me.peran === 'OWNER', kantor = jenis === 'Kantor', nama = kantor ? 'kantor' : 'proyek';
+  var lama = lokasiAktif(jenis, x.ID), batas = (S.d.info && S.d.info.geotagAkurasi) || 100, titik = null, peta = null;
+  modal('<h3>Rekam lokasi ' + nama + '</h3><div class="muted">' + esc(kantor ? x.Nama : x.NamaPaket) + '</div>' +
+    '<div class="info">' + (owner ? 'Ambil titik GPS saat berada di lokasi, atau <b>ketuk peta</b> untuk memilih / menggeser titik.' :
+      'Berdirilah di ' + (kantor ? 'kantor perusahaan' : 'lokasi proyek') + ', nyalakan GPS, lalu ambil titik. Titik akan dicek petugas KC.') + '</div>' +
+    '<div id="lkPeta"></div>' +
+    '<div class="baris" style="margin-top:8px;flex-wrap:wrap"><button type="button" class="btn utama" id="lkGps">📍 Ambil titik GPS</button><span class="muted" id="lkInfo"></span></div>' +
+    '<label class="f">Foto ' + (kantor ? 'papan nama / kantor' : 'papan proyek / lokasi proyek') + ' <small>(' + (owner ? 'pilihan' : 'wajib') + ')</small></label>' +
+    '<input type="file" id="lkFoto" accept="image/*" capture="environment">' +
+    '<label class="f">Catatan <small>(pilihan)</small></label><input type="text" id="lkCat" maxlength="300" placeholder="' + (kantor ? 'mis. lantai 2, sebelah toko bangunan' : 'mis. ruas jalan desa, titik awal pekerjaan') + '">' +
+    '<div class="aksi"><button class="btn" data-tutup>Batal</button><button class="btn utama" id="lkSimpan" disabled>Simpan lokasi</button></div>', function (bg) {
+      var tampil = function () {
+        var kurang = titik && titik.sumber === 'GPS' && titik.akurasi > batas;
+        $('#lkInfo', bg).innerHTML = !titik ? '' : titik.sumber === 'GPS' ? 'GPS ±' + titik.akurasi + ' m ' + (kurang ? '— <b style="color:var(--merah)">kurang teliti</b> (batas ' + batas + ' m). Pindah ke tempat terbuka lalu ambil lagi.' : '✓') : 'Titik dipilih di peta ✓';
+        $('#lkSimpan', bg).disabled = !titik || kurang;
+      };
+      peta = buatPeta($('#lkPeta', bg), {
+        titik: lama ? [{ lat: lama.Lat, lng: lama.Lng, kelas: 'lama', huruf: kantor ? 'K' : 'P', judul: 'Titik sebelumnya' }] : [],
+        saatPilih: owner ? function (lat, lng) { titik = { lat: lat, lng: lng, akurasi: '', sumber: 'Peta' }; tampil(); } : null
+      });
+      $('#lkGps', bg).onclick = function () {
+        busy(this, ambilGps(), 'Mencari sinyal GPS…').then(function (g) { titik = { lat: g.lat, lng: g.lng, akurasi: g.akurasi, sumber: 'GPS' }; peta.pilih(g.lat, g.lng); tampil(); }).catch(function () { });
+      };
+      $('#lkSimpan', bg).onclick = function () {
+        var f = $('#lkFoto', bg).files[0];
+        if (!owner && !f) return toast('Foto ' + (kantor ? 'papan nama / kantor' : 'papan proyek') + ' wajib diisi', true);
+        busy(this, (f ? bacaFoto(f) : Promise.resolve(null)).then(function (foto) {
+          return call('simpanLokasi', { jenis: jenis, cvId: kantor ? x.ID : '', paketId: kantor ? '' : x.ID, lat: titik.lat, lng: titik.lng, akurasi: titik.akurasi, sumber: titik.sumber, catatan: $('#lkCat', bg).value, foto: foto });
+        }), 'Menyimpan…').then(function (r) {
+          gantiLokasi(r.lokasi); bg.remove();
+          toast(owner ? 'Lokasi tersimpan' : 'Lokasi terkirim. Petugas KC akan mengeceknya.');
+          if (selesai) selesai();
+        }).catch(function () { });
+      };
+    });
+}
+
+function formCekLokasi(l, selesai) {
+  modal('<h3>Cek lokasi ' + (l.Jenis === 'Kantor' ? 'kantor' : 'proyek') + '</h3><div class="muted">' + esc(namaSasaran(l)) + '</div>' + ringkasLokasi(l) +
+    '<div id="ckPeta"></div><div class="baris" style="margin-top:6px;flex-wrap:wrap"><a class="btn kecil" target="_blank" rel="noopener" href="' + esc(urlMaps(l)) + '">Buka di Google Maps ↗</a>' +
+    (l.FotoURL ? '<a class="btn kecil" target="_blank" rel="noopener" href="' + esc(l.FotoURL) + '">Lihat foto</a>' : '') + '</div>' +
+    '<label class="f">Catatan <small>(wajib bila tidak cocok)</small></label><input type="text" id="ckCat" maxlength="300">' +
+    '<div class="aksi"><button class="btn" data-tutup>Tutup</button><button class="btn bahaya" id="ckTidak">Tidak cocok</button><button class="btn utama" id="ckCocok">Cocok</button></div>', function (bg) {
+      buatPeta($('#ckPeta', bg), { titik: [{ lat: l.Lat, lng: l.Lng, kelas: kelasPin(l), huruf: l.Jenis === 'Kantor' ? 'K' : 'P' }] });
+      var kirim = function (btn, hasil) {
+        busy(btn, call('cekLokasi', { id: l.ID, hasil: hasil, catatan: $('#ckCat', bg).value })).then(function (r) {
+          gantiLokasi(r.lokasi); bg.remove(); toast('Lokasi ditandai: ' + (hasil === 'Cocok' ? 'dicek petugas' : 'tidak cocok')); if (selesai) selesai();
+        }).catch(function () { });
+      };
+      $('#ckCocok', bg).onclick = function () { kirim(this, 'Cocok'); };
+      $('#ckTidak', bg).onclick = function () { if (!$('#ckCat', bg).value.trim()) return toast('Tulis alasan tidak cocok', true); kirim(this, 'Tidak cocok'); };
+    });
+}
+
+/* ---------------- tab Peta (petugas & Pengamat) ---------------- */
+function bukaSasaranLokasi(l) {
+  if (S.me.peran === 'OWNER' && S.me.hak !== 'Lihat' && l.Status === 'Belum dicek') return formCekLokasi(l, function () { if (S.go) S.go(S.tab); });
+  if (l.Jenis === 'Kantor') { var c = S.d.cv.filter(function (x) { return x.ID === l.CV_ID; })[0]; if (c && S.me.peran === 'OWNER') return detailCv(c); return; }
+  var p = S.d.paket.filter(function (x) { return x.ID === l.PAKET_ID; })[0]; if (p) detailPaket(p);
+}
+function tabPeta(el) {
+  var d = S.d, owner = S.me.peran === 'OWNER', lok = d.lokasi || [];
+  var hit = function (f) { return lok.filter(f).length; };
+  el.innerHTML = '<h2>Peta lokasi</h2><p class="muted">' + (owner ? 'Kantor CV/PT (K) dan lokasi proyek (P). Kuning = belum dicek, hijau = dicek petugas, merah = tidak cocok. Ketuk titik untuk rincian atau mengecek.' :
+    'Lokasi proyek konstruksi yang sudah direkam. Ketuk titik untuk rincian proyek.') + '</p>' + (owner ? '<div class="filters" id="fPeta"></div>' : '') + '<div id="petaSemua" class="besar"></div><div id="lPeta" style="margin-top:12px"></div>';
+  var peta = buatPeta($('#petaSemua'), {});
+  var gambar = function () {
+    var f = S.f.peta || 'Semua';
+    var arr = lok.filter(function (l) { return f === 'Semua' || l.Status === f || l.Jenis === f; });
+    peta.setTitik(arr.map(function (l) { return { lat: l.Lat, lng: l.Lng, kelas: kelasPin(l), huruf: l.Jenis === 'Kantor' ? 'K' : 'P', judul: namaSasaran(l), klik: function () { bukaSasaranLokasi(l); } }; }));
+    peta.cocokkan();
+    tabel($('#lPeta'), arr.slice().sort(function (a, b) { return (a.Status === 'Belum dicek' ? 0 : 1) - (b.Status === 'Belum dicek' ? 0 : 1) || String(b.Waktu).localeCompare(String(a.Waktu)); }),
+      [[function (r) { return chip(r.Status); }, 'Status']].concat(owner ? [['Jenis', 'Jenis']] : [], [[function (r) { return esc(namaSasaran(r)); }, owner ? 'CV/PT / proyek' : 'Proyek', 'judul-hp'], [function (r) { return esc(r.Waktu || ''); }, 'Direkam']],
+        owner ? [[function (r) { return esc(r.OlehNama || ''); }, 'Oleh']] : []),
+      { id: 'lk', hp: 1, klik: bukaSasaranLokasi, kosong: 'Belum ada lokasi yang direkam' });
+  };
+  if (owner) filterChips($('#fPeta'), 'peta', [['Semua', lok.length], ['Belum dicek', hit(function (l) { return l.Status === 'Belum dicek'; })], ['Kantor', hit(function (l) { return l.Jenis === 'Kantor'; })],
+    ['Proyek', hit(function (l) { return l.Jenis === 'Proyek'; })], ['Tidak cocok', hit(function (l) { return l.Status === 'Tidak cocok'; })]], gambar);
+  gambar();
+}
+
 /* === 99-mulai.js === */
 /* ----------------------------------------------------------------------
  *  SIGAP Jakon 2.0 · mulai: buka penyimpanan (PIN bila ada) → kode undangan bila belum masuk → tampilkan data
@@ -1526,7 +1828,7 @@ function formSimulasi(nilaiAwal) {
  * ---------------------------------------------------------------------- */
 /** Bentuk data awal dari server disamakan untuk semua peran (Pelaksana tanpa pengaturan & akses, Pengamat tanpa pengajuan). */
 function siapkanData(d) {
-  d.cv = d.cv || []; d.paket = d.paket || []; d.pengajuan = d.pengajuan || []; d.pengguna = d.pengguna || []; d.akses = d.akses || []; d.impor = d.impor || [];
+  d.cv = d.cv || []; d.paket = d.paket || []; d.pengajuan = d.pengajuan || []; d.pengguna = d.pengguna || []; d.akses = d.akses || []; d.impor = d.impor || []; d.lokasi = d.lokasi || [];
   d.info = d.info || {};
   S.d = d; S.me = d.me || {};
   return d;

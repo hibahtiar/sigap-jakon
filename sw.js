@@ -1,7 +1,7 @@
 /* SIGAP Jakon 2.0 — service worker.
    Simpanan hanya berawalan "sigap-jakon-" (plus "sigap-v1" milik versi 1): simpanan aplikasi lain di alamat yang sama
    (LENSA PK, Monitor SPPG, MyTagihan Desa) tidak pernah disentuh. Data (POST ke server) TIDAK pernah disimpan di sini. */
-var SIMPANAN = 'sigap-jakon-v2.0.3';
+var SIMPANAN = 'sigap-jakon-v2.1.0';
 var KERANGKA = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon-32.png', './config.js'];
 
 self.addEventListener('install', function (e) {
