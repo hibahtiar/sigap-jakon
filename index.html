@@ -105,6 +105,9 @@ select.st-baris{width:auto;min-width:150px;padding:5px 8px;font-size:13px}
 .hp-kartu td.judul-hp{order:-1;display:block;text-align:left;font-weight:700;font-size:15px;padding:2px 0 4px}.hp-kartu td.judul-hp::before{display:none}
 .hp-kartu td>div{text-align:right}
 }
+/* 2.0.3: tombol Kunci & Hapus akses tidak terlipat di HP */
+.top .btn,.top .judul{white-space:nowrap}
+@media(max-width:720px){.top{gap:8px;padding:8px 10px}}
 </style>
 </head>
 <body>
@@ -163,7 +166,7 @@ var KitSandi = (function () {
  *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
  *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
  * ---------------------------------------------------------------------- */
-var VERSI_APP = '2.0.2';
+var VERSI_APP = '2.0.3';
 var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
 var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
 
@@ -351,12 +354,27 @@ async function dicabut(pesan) {
   S.d = null; S.me = null; S.tab = null;
   layarMasuk('Akses perangkat ini sudah berakhir: ' + (pesan || 'dicabut oleh petugas') + '. Data SIGAP di perangkat ini sudah dihapus.');
 }
+/** 2.0.3: "Hapus akses" (dulu "Keluar") — perangkat dicabut di server & data di perangkat dihapus; perlu kode undangan baru. */
 async function keluarPerangkat() {
-  if (!confirm('Keluar dari SIGAP Jakon di perangkat ini?\n\nData SIGAP di perangkat ini dihapus. Untuk masuk lagi perlu kode undangan baru dari petugas KC.')) return;
   try { await kirimKe(DB.sinkron.url, { aksi: 'keluar', idp: DB.sinkron.idp, token: DB.sinkron.token, versiApp: VERSI_APP }); } catch (e) { /* tetap dihapus di perangkat */ }
   await hapusDataPerangkat();
   S.d = null; S.me = null; S.tab = null;
-  layarMasuk('Anda sudah keluar. Data SIGAP di perangkat ini sudah dihapus.');
+  layarMasuk('Akses SIGAP di perangkat ini sudah dihapus, begitu juga datanya. Untuk masuk lagi perlu kode undangan baru dari petugas KC.');
+}
+function tanyaHapusAkses() {
+  modal('<h3>Hapus akses dari perangkat ini?</h3><p>Ini <b>bukan</b> sekadar keluar atau menutup aplikasi. Setelah akses dihapus:</p>' +
+    '<ul style="margin:6px 0 10px 18px;padding:0"><li>data SIGAP di perangkat ini ikut dihapus,</li><li>kode undangan yang dipakai tidak berlaku lagi,</li><li>untuk masuk lagi perlu <b>kode undangan baru</b> dari petugas KC.</li></ul>' +
+    '<div class="info">Hanya ingin mengamankan aplikasi? Tekan <b>Kunci</b>: data & akses tetap, dibuka lagi dengan PIN.</div>' +
+    '<div class="aksi"><button class="btn" data-tutup>Batal</button><button class="btn" id="haKunci">🔒 Kunci saja</button><button class="btn utama bahaya" id="haYa">Ya, hapus akses</button></div>', function (bg) {
+      $('#haKunci', bg).onclick = function () { bg.remove(); kunciAplikasi(); };
+      $('#haYa', bg).onclick = function () { busy(this, keluarPerangkat(), 'Menghapus…').then(function () { bg.remove(); }).catch(function () { }); };
+    });
+}
+/** 2.0.3: Kunci = simpan lalu muat ulang → layar PIN. Belum ada PIN → buat PIN dulu. Data & akses tetap. */
+async function kunciAplikasi() {
+  if (!pinAktif()) return formPin('kunci');
+  await simpanDb(true);
+  location.reload();
 }
 
 function kartuGerbang(isi) {
@@ -399,18 +417,18 @@ function layarPin() {
     setTimeout(function () { var x = $('#pPin'); if (x) x.focus(); }, 50);
   });
 }
-function formPin() {
-  var ada = pinAktif();
-  modal('<h3>PIN perangkat</h3><p class="muted">' + (ada ? 'Data SIGAP di perangkat ini terkunci PIN.' : 'PIN (pilihan) mengunci data SIGAP di perangkat ini. NIK & foto KTP memang tidak pernah disimpan di perangkat.') + '</p>' +
+function formPin(lalu) {
+  var ada = pinAktif(), kunci = lalu === 'kunci';
+  modal('<h3>' + (kunci ? 'Kunci SIGAP di perangkat ini' : 'PIN perangkat') + '</h3><p class="muted">' + (kunci ? 'Buat PIN dulu. Setelah dikunci, SIGAP hanya bisa dibuka dengan PIN ini; data & akses tetap ada.' : ada ? 'Data SIGAP di perangkat ini terkunci PIN.' : 'PIN (pilihan) mengunci data SIGAP di perangkat ini. NIK & foto KTP memang tidak pernah disimpan di perangkat.') + '</p>' +
     '<label class="f">' + (ada ? 'PIN baru' : 'PIN') + ' <small>(4–12 angka)</small></label><input type="password" inputmode="numeric" id="nPin1">' +
     '<label class="f">Ulangi PIN</label><input type="password" inputmode="numeric" id="nPin2">' +
-    '<div class="aksi">' + (ada ? '<button class="btn" id="nLepas">Lepas PIN</button>' : '') + '<button class="btn" data-tutup>Batal</button><button class="btn utama" id="nPasang">' + (ada ? 'Ganti PIN' : 'Pasang PIN') + '</button></div>', function (bg) {
+    '<div class="aksi">' + (ada ? '<button class="btn" id="nLepas">Lepas PIN</button>' : '') + '<button class="btn" data-tutup>Batal</button><button class="btn utama" id="nPasang">' + (kunci ? 'Pasang PIN & kunci' : ada ? 'Ganti PIN' : 'Pasang PIN') + '</button></div>', function (bg) {
       $('#nPasang', bg).onclick = function () {
         var a = $('#nPin1', bg).value, b = $('#nPin2', bg).value;
         if (a !== b) { toast('PIN tidak sama.', true); return; }
-        busy(this, pasangPin(a)).then(function () { bg.remove(); toast('PIN terpasang.'); }).catch(function () { });
+        busy(this, pasangPin(a)).then(function () { bg.remove(); toast('PIN terpasang.'); if (kunci) kunciAplikasi(); else if ($('#lnkPin')) $('#lnkPin').textContent = 'Ganti / lepas PIN'; }).catch(function () { });
       };
-      if ($('#nLepas', bg)) $('#nLepas', bg).onclick = function () { busy(this, lepasPin()).then(function () { bg.remove(); toast('PIN dilepas.'); }).catch(function () { }); };
+      if ($('#nLepas', bg)) $('#nLepas', bg).onclick = function () { busy(this, lepasPin()).then(function () { bg.remove(); toast('PIN dilepas.'); if ($('#lnkPin')) $('#lnkPin').textContent = 'Atur PIN'; }).catch(function () { }); };
     });
 }
 
@@ -460,9 +478,9 @@ function call(aksi, arg) {
 }
 
 /** Jalankan aksi dengan tombol "loading". */
-function busy(btn, p) {
+function busy(btn, p, label) {
   var asli = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Memproses…'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> ' + (label || 'Memproses…'); }
   return p.then(function (x) { if (btn) { btn.disabled = false; btn.innerHTML = asli; } return x; },
     function (e) { if (btn) { btn.disabled = false; btn.innerHTML = asli; } toast(e.message || String(e), true); throw e; });
 }
@@ -553,10 +571,11 @@ function kerangka(tabs) {
     { OWNER: 'Petugas KC', JAKON: 'Admin / Direktur CV', PEMKAB: 'Pemkab / Instansi' }[me.peran];
   if (me.hak === 'Lihat') peranLabel += ' · hanya melihat';
   $('#app').innerHTML = '<div class="top"><div class="mono" aria-hidden="true">' + IKON + '</div><div class="judul">SIGAP Jakon<small>Gerbang Kepatuhan Jasa Konstruksi</small></div><span class="sp"></span>' +
-    '<div class="user"><b>' + esc(me.nama) + '</b><br>' + esc(peranLabel) + '</div><button class="btn kecil" id="btnPin" title="Kunci data di perangkat ini dengan PIN">PIN</button><button class="btn kecil" id="btnKeluar">Keluar</button></div>' +
-    '<nav class="nav" id="nav"></nav><main id="main"></main><footer class="disc">SIGAP Jakon ' + VERSI_APP + ' · server ' + esc((S.d.info && S.d.info.versi) || '') + ' · aplikasi kreativitas staf KC Pamekasan, bukan aplikasi resmi BPJS Ketenagakerjaan</footer>';
-  $('#btnKeluar').onclick = function () { keluarPerangkat(); };
-  $('#btnPin').onclick = function () { formPin(); };
+    '<div class="user"><b>' + esc(me.nama) + '</b><br>' + esc(peranLabel) + '</div><button class="btn kecil" id="btnKunci" title="Kunci aplikasi dengan PIN. Data & akses tetap.">🔒 Kunci</button><button class="btn kecil bahaya" id="btnHapusAkses" title="Hapus akses & data SIGAP dari perangkat ini">Hapus akses</button></div>' +
+    '<nav class="nav" id="nav"></nav><main id="main"></main><footer class="disc">SIGAP Jakon ' + VERSI_APP + ' · server ' + esc((S.d.info && S.d.info.versi) || '') + ' · aplikasi kreativitas staf KC Pamekasan, bukan aplikasi resmi BPJS Ketenagakerjaan · <a href="#" id="lnkPin">' + (pinAktif() ? 'Ganti / lepas PIN' : 'Atur PIN') + '</a></footer>';
+  $('#btnKunci').onclick = function () { kunciAplikasi(); };
+  $('#btnHapusAkses').onclick = function () { tanyaHapusAkses(); };
+  $('#lnkPin').onclick = function (e) { e.preventDefault(); formPin(); };
   var nav = $('#nav');
   nav.innerHTML = tabs.map(function (t) { return '<button data-t="' + t[0] + '">' + esc(t[1]) + (t[3] ? '<span class="badge">' + t[3] + '</span>' : '') + '</button>'; }).join('');
   var go = function (id) { S.tab = id; $$('button', nav).forEach(function (b) { b.classList.toggle('on', b.dataset.t === id); }); var t = tabs.filter(function (x) { return x[0] === id; })[0]; $('#main').innerHTML = ''; t[2]($('#main')); window.scrollTo(0, 0); };
@@ -961,10 +980,17 @@ function jakonBeranda(el) {
     }).join('') +
     '<h3>Proyek perusahaan Anda</h3><p class="muted" style="margin-top:-6px">Klik proyek untuk melihat rinciannya dan mengajukan pendaftaran proyek.</p><div id="tJp"></div>' +
     '<div class="info">Tidak sedang ada proyek? Ajukan <b>penonaktifan</b> lewat menu Ajukan: surat dan berita acara sudah terisi otomatis. Begitu dapat proyek lagi, <b>daftarkan proyeknya</b> (NPP, penanggung jawab, SPK, SPMK) dan kepesertaan aktif kembali.</div>' +
-    (d.info.wa ? '<a class="btn wa" target="_blank" href="' + esc(waLink(d.info.wa, 'Halo pembina, saya ' + d.me.nama + ' (SIGAP Jakon). ')) + '">Tanya pembina lewat WA</a>' : '');
+    (d.info.wa ? '<a class="btn wa" target="_blank" href="' + esc(waLink(d.info.wa, pesanTanyaPembina())) + '">Tanya pembina lewat WA</a>' : '');
   $$('[data-kontak]', el).forEach(function (b) { b.onclick = function () { ubahKontakCv(d.cv[+b.dataset.kontak]); }; });
   tabel($('#tJp'), d.paket, [[function (r) { return esc(r.KodeRUP || '-'); }, 'Kode RUP'], ['NamaPaket', 'Paket', 'judul-hp'], ['Satker', 'Pemilik'], [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return chip(statusJakonPaket(r)); }, 'Jakon']],
     { id: 'jp', hp: 1, klik: detailProyekMitra, kosong: 'Belum ada proyek tercatat atas nama perusahaan Anda' });
+}
+
+/** 2.0.3: pesan WA ke pembina menyebut perusahaan (nama + NPP) agar pembina langsung tahu. */
+function pesanTanyaPembina() {
+  var cv = S.d.cv.map(function (c) { return c.Nama + (c.NPP ? ' (NPP ' + c.NPP + ')' : ''); });
+  var teks = cv.length > 3 ? cv.slice(0, 3).join(', ') + ' dan ' + (cv.length - 3) + ' perusahaan lain' : cv.join(', ');
+  return 'Halo pembina 👋\nSaya ' + S.d.me.nama + (teks ? ' dari ' + teks : '') + ' (lewat SIGAP Jakon).\n\n';
 }
 
 /** Pengajuan "Daftarkan Proyek" milik Mitra untuk paket ini (yang tidak ditolak). */
@@ -973,14 +999,17 @@ function statusJakonPaket(p) { var a = ajuanPaket(p); return p.NoJakon ? 'Terdaf
 
 function detailProyekMitra(p) {
   var a = ajuanPaket(p), cv = S.d.cv.filter(function (c) { return c.ID === p.CV_ID; })[0];
+  var nilaiP = Number(p.NilaiKontrak) || Number(p.Pagu) || 0, iur = hitungIuranJakon(nilaiP, true);
   modal('<h3>' + esc(p.NamaPaket) + '</h3><div class="baris">' + chip(statusJakonPaket(p)) + '</div>' +
     '<div class="tbl-wrap" style="margin-top:8px"><table><tbody>' + [['Kode RUP', p.KodeRUP], ['Kode paket', p.KodePaket], ['Perusahaan', cv ? cv.Nama : p.Pemenang], ['Pemilik proyek / satker', p.Satker], ['Pagu', rp(p.Pagu)], ['Nilai kontrak', rp(p.NilaiKontrak)],
       ['Jenis / metode', [p.JenisPengadaan, p.Metode].filter(Boolean).join(' / ')], ['Tahun', p.Tahun], ['Lokasi', p.Lokasi], ['Tahap', p.Tahap], ['Status pelaksanaan', p.StatusPemkab]]
       .filter(function (x) { return x[1] !== undefined && x[1] !== null && x[1] !== '' && x[1] !== '-'; }).map(function (x) { return '<tr><th style="width:40%">' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+    (nilaiP ? '<div class="kartu" style="margin-top:10px"><div class="baris"><b style="flex:1">Perkiraan iuran Jakon</b><b>' + rp(iur.total) + '</b></div><div class="muted">JKK ' + rp(iur.jkk) + ' + JKM ' + rp(iur.jkm) + ' · dari nilai ' + rp(nilaiP) + ' (dianggap termasuk PPN 11%) · <a href="#" id="mpSim">rincian / simulasi</a></div></div>' : '') +
     (p.NoJakon ? '<div class="info">Proyek ini sudah terdaftar di program Jasa Konstruksi. Terima kasih!</div>' : a ? '<div class="info">Pendaftaran proyek ini sudah diajukan (' + esc(a.ID) + ', status <b>' + esc(a.Status) + '</b>).</div>' :
-      '<div class="info kuning">Proyek ini belum didaftarkan ke program Jasa Konstruksi BPJS Ketenagakerjaan. Ajukan sekarang: cukup NPP, penanggung jawab proyek, SPK, dan SPMK.</div>') +
+      '<div class="info kuning">Proyek ini belum didaftarkan ke program Jasa Konstruksi BPJS Ketenagakerjaan. Ajukan lewat pembina (cukup NPP, penanggung jawab proyek, SPK, dan SPMK), atau daftar sendiri di situs resmi ' + tautanEjakon('E-Jakon') + '.</div>') +
     '<div class="aksi"><button class="btn" data-tutup>Tutup</button>' + (p.NoJakon ? '' : a ? '<button class="btn utama" id="mpLihat">Lihat pengajuan</button>' : '<button class="btn utama" id="mpAjukan">Ajukan pendaftaran proyek</button>') + '</div>', function (bg) {
       if ($('#mpLihat', bg)) $('#mpLihat', bg).onclick = function () { bg.remove(); langkahBerkas(a); };
+      if ($('#mpSim', bg)) $('#mpSim', bg).onclick = function (e) { e.preventDefault(); formSimulasi(nilaiP); };
       if ($('#mpAjukan', bg)) $('#mpAjukan', bg).onclick = function () { bg.remove(); S.go('ajukan'); formAjuan('Daftarkan Proyek', { cvId: p.CV_ID, paketId: p.ID }); };
     });
 }
@@ -1051,11 +1080,13 @@ function jakonAjukan(el) {
   var pil = [
     ['Pendaftaran', 'Daftar perusahaan', 'Isi Formulir 1 di sini → unduh → tanda tangan & stempel → unggah bersama NIB, NPWP, dan KTP tiap pekerja.', '3 PDF + KTP'],
     ['Daftarkan Proyek', 'Daftarkan proyek', 'Dapat proyek? Isi NPP dan penanggung jawab proyek, lalu unggah SPK dan SPMK. Pembina akan mendaftarkannya ke program Jasa Konstruksi.', '2 PDF'],
-    ['Penonaktifan', 'Penonaktifan', 'Tidak ada proyek? Surat penonaktifan dan berita acara sudah terisi otomatis: unduh, tanda tangan & stempel, lalu unggah keduanya.', '2 PDF']
+    ['Penonaktifan', 'Penonaktifan', 'Tidak ada proyek? Surat penonaktifan dan berita acara sudah terisi otomatis: unduh, tanda tangan & stempel, lalu unggah keduanya.', '2 PDF'],
+    ['Simulasi', 'Simulasi iuran Jasa Konstruksi', 'Hitung perkiraan iuran JKK & JKM dari nilai kontrak, sesuai ketentuan tarif berlapis.', 'Hitung']
   ];
   el.innerHTML = '<h2>Ajukan ke pembina</h2><p class="muted" style="margin-top:-6px">Setiap berkas diunggah tersendiri. Draf tersimpan, bisa dilanjutkan, diubah, atau dihapus dari menu Pengajuan saya.</p>' +
     pil.map(function (p) { return '<div class="item" data-j="' + p[0] + '"><div class="baris"><span class="t">' + esc(p[1]) + '</span><span class="sp"></span><span class="chip">' + esc(p[3]) + '</span></div><div class="s">' + esc(p[2]) + '</div></div>'; }).join('');
-  $$('.item', el).forEach(function (it) { it.onclick = function () { formAjuan(it.dataset.j); }; });
+  el.innerHTML += '<div class="info" style="margin-top:12px">Ingin mendaftarkan proyek sendiri lewat situs resmi? Buka ' + tautanEjakon() + '. Setelah terdaftar, kabari pembina lewat WA agar tercatat di SIGAP.</div>';
+  $$('.item', el).forEach(function (it) { it.onclick = function () { if (it.dataset.j === 'Simulasi') return formSimulasi(); formAjuan(it.dataset.j); }; });
 }
 
 function opsiCv(pilih) {
@@ -1083,11 +1114,11 @@ function formAjuan(jenis, pre) {
     html += inp('NPP', 'NPP perusahaan', cv0.NPP || '', { req: 1, num: 1, hint: 'otomatis dari data kami; ubah bila berbeda' }) +
       '<label class="f">Paket <small>(dari data INAPROC, atau isi manual)</small></label><select id="aPaket"></select>' +
       inp('NAMA_PROYEK', 'Nama proyek / paket', '', { req: 1 }) +
-      '<div class="dua"><div>' + inp('PEMILIK_PROYEK', 'Pemilik proyek / satker', '') + '</div><div>' + inp('NILAI', 'Nilai kontrak (Rp)', '', { num: 1 }) + '</div></div>' +
+      '<div class="dua"><div>' + inp('PEMILIK_PROYEK', 'Pemilik proyek / satker', '') + '</div><div>' + inp('NILAI', 'Nilai kontrak (Rp)', '', { num: 1 }) + '<div class="muted" id="aIuran" style="margin-top:4px"></div></div></div>' +
       '<div class="dua"><div>' + inp('TGL_SPMK', 'Tanggal SPMK', '', { type: 'date' }) + '</div><div>' + inp('LAMA_KERJA', 'Lama pekerjaan', '', { hint: 'contoh: 60 hari' }) + '</div></div>' +
       '<div class="dua"><div>' + inp('LOKASI', 'Lokasi', '') + '</div><div>' + inp('SUMBER_DANA', 'Sumber dana', '', { hint: 'APBD, dana desa, swasta…' }) + '</div></div>' +
       '<h3>Penanggung jawab proyek</h3><div class="dua"><div>' + inp('NAMA_PJ', 'Nama penanggung jawab', cv0.PelaksanaNama || '', { req: 1 }) + '</div><div>' + inp('HP_PJ', 'No. HP / WhatsApp', cv0.PelaksanaHP || '', { req: 1, type: 'tel' }) + '</div></div>' +
-      '<div class="info">KTP pekerja proyek <b>tidak perlu</b> diunggah di sini. Pembina akan menghubungi penanggung jawab lewat WhatsApp bila diperlukan.</div>';
+      '<div class="info">KTP pekerja proyek <b>tidak perlu</b> diunggah di sini. Pembina akan menghubungi penanggung jawab lewat WhatsApp bila diperlukan. Bisa juga daftar sendiri lewat ' + tautanEjakon('E-Jakon') + '.</div>';
   } else if (jenis === 'Penonaktifan') {
     html += '<h3>Surat penonaktifan</h3><div class="dua"><div>' + inp('BULAN', 'Nonaktif mulai bulan', thisMonth(), { type: 'month', req: 1 }) + '</div><div>' + inp('TGL_SURAT', 'Tanggal surat & berita acara', today(), { type: 'date' }) + '</div></div>' +
       inp('ALASAN', 'Keterangan', 'Tidak ada pekerjaan/proyek konstruksi') +
@@ -1115,10 +1146,17 @@ function formAjuan(jenis, pre) {
       sel.onchange();
     };
     if ($('#aPaket', bg)) {
+      var iuran = function () {
+        var h = hitungIuranJakon(angkaRp($('[data-k=NILAI]', bg).value), true);
+        $('#aIuran', bg).innerHTML = h.nilai ? 'Perkiraan iuran Jakon: <b>' + rp(h.total) + '</b> · <a href="#" id="aSim">rincian</a>' : '';
+        if ($('#aSim', bg)) $('#aSim', bg).onclick = function (e) { e.preventDefault(); formSimulasi(h.nilai); };
+      };
+      $('[data-k=NILAI]', bg).addEventListener('input', iuran);
       $('#aPaket', bg).onchange = function () {
         var p = d.paket.filter(function (x) { return x.ID === $('#aPaket', bg).value; })[0]; if (!p) return;
         $('[data-k=NAMA_PROYEK]', bg).value = p.NamaPaket || ''; $('[data-k=PEMILIK_PROYEK]', bg).value = p.Satker || ''; $('[data-k=NILAI]', bg).value = p.NilaiKontrak || p.Pagu || '';
         if (p.Lokasi && !$('[data-k=LOKASI]', bg).value) $('[data-k=LOKASI]', bg).value = p.Lokasi;
+        iuran();
       };
       $('#aCv', bg).onchange = function () {
         var c = d.cv.filter(function (x) { return x.ID === $('#aCv', bg).value; })[0] || {};
@@ -1126,7 +1164,7 @@ function formAjuan(jenis, pre) {
         if (c.PelaksanaNama) { $('[data-k=NAMA_PJ]', bg).value = c.PelaksanaNama; $('[data-k=HP_PJ]', bg).value = c.PelaksanaHP || ''; }
         isiPaket();
       };
-      isiPaket(true);
+      isiPaket(true); iuran();
     }
     $('#aLanjut', bg).onclick = function () {
       var r = ambilData(bg), data = r.data, kurang = r.kurang;
@@ -1140,10 +1178,17 @@ function formAjuan(jenis, pre) {
 
 function kirimDraf(btn, bg, jenis, cvId, data, idUbah) {
   var janji = idUbah ? call('ubahPengajuan', { id: idUbah, cvId: cvId, data: data }) : call('buatPengajuan', { jenis: jenis, cvId: cvId, data: data });
-  busy(btn, janji).then(function (r) {
+  busy(btn, janji, 'Menyimpan…').then(function (r) {
     bg.remove();
     S.draf = S.draf || {}; S.draf[r.id] = { data: data, cvId: cvId };
-    if (idUbah) toast('Perubahan tersimpan');
+    toast(idUbah ? 'Perubahan tersimpan' : 'Tersimpan sebagai draf. Lanjut unggah berkas.');
+    // 2.0.4: server mengirim balik pengajuannya → langkah unggah langsung tampil; data lain disegarkan di belakang layar
+    if (r.p) {
+      S.d.pengajuan = [r.p].concat(S.d.pengajuan.filter(function (x) { return x.ID !== r.id; }));
+      langkahBerkas(r.p);
+      muatUlang(true).catch(function () { });
+      return;
+    }
     return muatUlang(true).then(function () { var p = S.d.pengajuan.filter(function (x) { return x.ID === r.id; })[0]; if (p) langkahBerkas(p); });
   }).catch(function () { });
 }
@@ -1336,7 +1381,7 @@ function detailPengajuan(p) {
   };
   modal('<h3>' + esc(JUDUL_JENIS[p.Jenis] || p.Jenis) + ' · ' + esc(p.NamaPK) + '</h3><div class="baris">' + chip(p.Status) + '<span class="muted">' + esc(p.ID) + ' · oleh ' + esc(u.Nama || p.UserID) + ' ' + esc(u.NoHP || '') + '</span></div>' + auto +
     '<h3>Berkas (periksa satu per satu)</h3>' + slots.map(barisCek).join('') +
-    '<div class="muted" style="margin-top:4px"><a target="_blank" href="' + esc(p.FolderURL) + '">Buka folder berkas di Drive</a></div>' +
+    '<div class="muted" style="margin-top:4px">' + (p.FolderURL ? '<a target="_blank" href="' + esc(p.FolderURL) + '">Buka folder berkas di Drive</a>' : 'Belum ada berkas diunggah') + '</div>' +
     '<h3>Data isian</h3><div class="tbl-wrap"><table><tbody>' + Object.keys(data).filter(function (k) { return data[k] !== ''; }).map(function (k) { return '<tr><th style="width:38%">' + esc(LABEL_DATA[k] || k) + '</th><td>' + esc(/BULAN|PESERTA_SEJAK/.test(k) ? bln(data[k]) : data[k]) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
     '<h3>Tindak lanjut</h3><label class="f">Status</label><select id="gSt">' + S.d.info.statusPengajuan.filter(function (s) { return s !== 'Draf'; }).map(function (s) { return '<option ' + (p.Status === s ? 'selected' : '') + '>' + s + '</option>'; }).join('') + '</select>' +
     (p.Jenis === 'Pendaftaran' ? '<label class="f">NPP hasil pendaftaran <small>(wajib saat Selesai)</small></label><input type="text" id="gNpp" value="' + esc(p.NPP || '') + '">' : '') +
@@ -1423,6 +1468,55 @@ function tandaSegar(t, siap, err) {
     return;
   }
   el.textContent = 'Menampilkan data tersimpan, sedang menyegarkan…';
+}
+
+/* ============================================================
+   2.0.3: SIMULASI IURAN JASA KONSTRUKSI (JKK + JKM dari nilai kontrak)
+   Tarif berlapis sesuai Permenaker No. 5 Tahun 2021 (sama dengan bpjsketenagakerjaan.go.id/jasa-konstruksi dan E-Jakon):
+   tiap lapis nilai kontrak dikali tarifnya, lalu dijumlah. Nilai kontrak yang termasuk PPN dibagi 1,11 dulu (seperti E-Jakon).
+   ============================================================ */
+var URL_EJAKON = 'https://ejakon.bpjsketenagakerjaan.go.id/';
+var TARIF_JAKON = [ // [batas atas lapis, tarif JKK, tarif JKM]
+  [100000000, 0.0021, 0.0003], [500000000, 0.0017, 0.0002], [1000000000, 0.0013, 0.0002], [5000000000, 0.0011, 0.0001], [Infinity, 0.0009, 0.0001]];
+function hitungIuranJakon(nilai, termasukPpn) {
+  var n = Math.max(0, Number(nilai) || 0), dasar = Math.round(termasukPpn ? n / 1.11 : n), bawah = 0, jkk = 0, jkm = 0, lapis = [];
+  TARIF_JAKON.forEach(function (t) {
+    var porsi = Math.min(dasar, t[0]) - bawah;
+    if (porsi > 0) { lapis.push({ dari: bawah, sampai: t[0], porsi: porsi, tJkk: t[1], tJkm: t[2], jkk: porsi * t[1], jkm: porsi * t[2] }); jkk += porsi * t[1]; jkm += porsi * t[2]; }
+    bawah = t[0];
+  });
+  jkk = Math.round(jkk); jkm = Math.round(jkm);
+  return { nilai: n, dasar: dasar, jkk: jkk, jkm: jkm, total: jkk + jkm, lapis: lapis };
+}
+function angkaRp(t) { return Number(String(t || '').replace(/[^\d]/g, '')) || 0; }
+function persen(x) { return (x * 100).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + '%'; }
+function singkatRp(x) { return x >= 1e9 ? (x / 1e9).toLocaleString('id-ID') + ' M' : (x / 1e6).toLocaleString('id-ID') + ' jt'; }
+function labelLapis(l) { return !l.dari ? 's.d. ' + singkatRp(l.sampai) : l.sampai === Infinity ? 'di atas ' + singkatRp(l.dari) : singkatRp(l.dari) + ' – ' + singkatRp(l.sampai); }
+function tautanEjakon(teks) { return '<a href="' + URL_EJAKON + '" target="_blank" rel="noopener">' + (teks || 'E-Jakon BPJS Ketenagakerjaan') + ' ↗</a>'; }
+
+function formSimulasi(nilaiAwal) {
+  modal('<h3>Simulasi iuran Jasa Konstruksi</h3><p class="muted">Program JKK & JKM dihitung dari nilai kontrak dengan tarif berlapis (Permenaker No. 5 Tahun 2021).</p>' +
+    '<label class="f">Nilai kontrak (Rp)</label><input type="text" inputmode="numeric" id="smNilai" value="' + (nilaiAwal ? Number(nilaiAwal).toLocaleString('id-ID') : '') + '" placeholder="contoh: 600.000.000">' +
+    '<label style="display:block;margin-top:8px"><input type="checkbox" id="smPpn" checked> Nilai kontrak sudah termasuk PPN 11% <small class="muted">(dasar hitung = nilai ÷ 1,11)</small></label>' +
+    '<div id="smHasil" style="margin-top:12px"></div>' +
+    '<p class="muted" style="margin-top:10px">Ini perkiraan. Iuran resmi mengikuti penetapan BPJS Ketenagakerjaan. Hitungan resmi juga ada di ' + tautanEjakon() + '.</p>' +
+    '<div class="aksi"><button class="btn" data-tutup>Tutup</button></div>', function (bg) {
+      var gambar = function () {
+        var h = hitungIuranJakon(angkaRp($('#smNilai', bg).value), $('#smPpn', bg).checked);
+        if (!h.nilai) { $('#smHasil', bg).innerHTML = '<div class="kosong">Isi nilai kontrak untuk melihat perkiraan iuran.</div>'; return; }
+        $('#smHasil', bg).innerHTML = '<div class="tbl-wrap"><table><thead><tr><th>Program</th><th class="num">Dasar hitung</th><th class="num">Iuran</th></tr></thead><tbody>' +
+          '<tr><td>Jaminan Kecelakaan Kerja (JKK)</td><td class="num">' + rp(h.dasar) + '</td><td class="num">' + rp(h.jkk) + '</td></tr>' +
+          '<tr><td>Jaminan Kematian (JKM)</td><td class="num">' + rp(h.dasar) + '</td><td class="num">' + rp(h.jkm) + '</td></tr>' +
+          '<tr><th>Total iuran</th><td></td><th class="num">' + rp(h.total) + '</th></tr></tbody></table></div>' +
+          '<details style="margin-top:8px"><summary class="muted">Rincian per lapis nilai kontrak</summary><div class="tbl-wrap" style="margin-top:6px"><table><thead><tr><th>Lapis nilai</th><th class="num">JKK</th><th class="num">JKM</th></tr></thead><tbody>' +
+          h.lapis.map(function (l) { return '<tr><td>' + labelLapis(l) + '<div class="muted">bagian ' + rp(Math.round(l.porsi)) + '</div></td><td class="num">' + rp(Math.round(l.jkk)) + '<div class="muted">' + persen(l.tJkk) + '</div></td><td class="num">' + rp(Math.round(l.jkm)) + '<div class="muted">' + persen(l.tJkm) + '</div></td></tr>'; }).join('') +
+          '</tbody></table></div></details>';
+      };
+      $('#smNilai', bg).oninput = function () { var v = angkaRp(this.value); this.value = v ? v.toLocaleString('id-ID') : ''; gambar(); };
+      $('#smPpn', bg).onchange = gambar;
+      gambar();
+      setTimeout(function () { $('#smNilai', bg).focus(); }, 50);
+    });
 }
 
 /* === 99-mulai.js === */
