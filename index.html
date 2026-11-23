@@ -191,7 +191,7 @@ var KitSandi = (function () {
  *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
  *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
  * ---------------------------------------------------------------------- */
-var VERSI_APP = '2.1.1';
+var VERSI_APP = '2.2.0'; // 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
 var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
 var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
 
@@ -349,8 +349,10 @@ async function panggilServer(fn, arg) {
     if (galat.length) simpanDb();
     throw new Error(j.galat || 'Gagal');
   }
+  var menuLama = teksMenuMati(DB.sinkron.akses);
   if (j.akses) DB.sinkron.akses = j.akses;
   DB.sinkron.terakhirOk = Date.now();
+  if (j.akses && typeof periksaMenu === 'function') periksaMenu(menuLama); // 2.2.0 (5D): menu dari Pusat Kendali
   simpanDb();
   return j.data;
 }
@@ -591,8 +593,24 @@ function filterChips(el, id, pilihan, onChange) {
 }
 function hitung(arr, fn) { var c = {}; arr.forEach(function (x) { var k = fn(x); c[k] = (c[k] || 0) + 1; }); return c; }
 
+// ---------- 2.2.0 (LENSA Suite 5D): menu yang dimatikan dari Pusat Kendali LENSA (Pemilik selalu lengkap) ----------
+function menuMati() {
+  var a = DB.sinkron && DB.sinkron.akses;
+  return a && a.peran !== 'Pemilik' && Array.isArray(a.menuMati) ? a.menuMati : [];
+}
+function teksMenuMati(a) { return a && Array.isArray(a.menuMati) ? a.menuMati.slice().sort().join(',') : ''; }
+/** Dipanggil setelah jawaban server: menu berubah → tampilan disusun ulang (ditunda bila jendela sedang terbuka). */
+function periksaMenu(lama) {
+  if (lama !== teksMenuMati(DB.sinkron && DB.sinkron.akses)) S.menuTunda = true;
+  if (!S.menuTunda || !S.me || !S.d) return;
+  setTimeout(function () { if (S.menuTunda && !document.querySelector('.modal-bg')) { S.menuTunda = false; tampilPeran(); } }, 0);
+}
+
 // ---------- kerangka ----------
 function kerangka(tabs) {
+  var mati = menuMati();
+  tabs = tabs.filter(function (t) { return mati.indexOf(t[0]) < 0; }); // 2.2.0 (5D)
+  S.menuTunda = false;
   var me = S.me;
   var peranLabel = { Pemilik: 'Petugas KC · Pemilik', Pelaksana: 'Petugas KC · Pelaksana', Mitra: 'Admin / Direktur CV', Pengamat: 'Pemkab / Instansi' }[me.peranSuite] ||
     { OWNER: 'Petugas KC', JAKON: 'Admin / Direktur CV', PEMKAB: 'Pemkab / Instansi' }[me.peran];
@@ -605,7 +623,9 @@ function kerangka(tabs) {
   $('#lnkPin').onclick = function (e) { e.preventDefault(); formPin(); };
   var nav = $('#nav');
   nav.innerHTML = tabs.map(function (t) { return '<button data-t="' + t[0] + '">' + esc(t[1]) + (t[3] ? '<span class="badge">' + t[3] + '</span>' : '') + '</button>'; }).join('');
-  var go = function (id) { S.tab = id; $$('button', nav).forEach(function (b) { b.classList.toggle('on', b.dataset.t === id); }); var t = tabs.filter(function (x) { return x[0] === id; })[0]; $('#main').innerHTML = ''; t[2]($('#main')); window.scrollTo(0, 0); };
+  var go = function (id) {
+    if (!tabs.some(function (x) { return x[0] === id; })) { toast('Menu ini dimatikan oleh pengelola (LENSA PK).', true); id = tabs[0][0]; } // 5D
+    S.tab = id; $$('button', nav).forEach(function (b) { b.classList.toggle('on', b.dataset.t === id); }); var t = tabs.filter(function (x) { return x[0] === id; })[0]; $('#main').innerHTML = ''; t[2]($('#main')); window.scrollTo(0, 0); };
   $$('button', nav).forEach(function (b) { b.onclick = function () { go(b.dataset.t); }; });
   S.go = go;
   go(tabs.some(function (t) { return t[0] === S.tab; }) ? S.tab : tabs[0][0]);
