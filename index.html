@@ -152,6 +152,14 @@ table.panas-tabel{border-collapse:separate;border-spacing:2px;font-size:12.5px}
 .panas-tabel td.kosong-sel{color:#D6D3D1;font-weight:400}.panas-tabel td.panas-sel.jml{border:1px solid var(--garis)}
 .panas-tabel tr.panas-jml th,.panas-tabel tr.panas-jml td{border-top:2px solid var(--garis)}
 .seg button.on{background:#FFF7ED;border-color:var(--hijau);color:var(--hijau)}
+/* 2.3.1: total tunggakan (iuran + denda) di CV/PT & rincian di detail CV */
+.kartu.tunggak-total{background:#FFF7ED;border-color:#FFEDD5}
+.tunggak-total .grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.tunggak-total .l{color:var(--abu);font-size:12.5px}.tunggak-total .n{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}.tunggak-total .n.merah{color:var(--merah)}
+.tunggak-total select{padding:4px 8px;font-size:13px;margin-left:4px}
+details.rincian-tg{margin:4px 0 10px;border:1px solid #FFEDD5;background:#FFFBF7;border-radius:var(--r);padding:8px 10px}
+details.rincian-tg summary{cursor:pointer;font-weight:700;color:var(--merah)}
+th.num{text-align:right}
 </style>
 </head>
 <body>
@@ -1749,6 +1757,9 @@ var KitWilayah = (function () {
  *   - pemilik: Pemkab Pamekasan / Pemkab lain / Provinsi / Pusat / Desa / Belum jelas (+ perkiraan)
  *   - statusIuran: proyek tahun lalu ber-iuran Rp 0 = "Lunas tahun sebelumnya" (Hafidz 24 Nov: semua sudah lunas & berkuitansi,
  *     laporan proyek aktif hanya memuat iuran tahun berjalan); proyek tahun berjalan Rp 0 = perlu cek.
+ *   - tunggakan: iuran tertunggak + denda per bulan (24 Nov, permintaan Hafidz) — rumus sama dengan rincian tagihan LENSA PK:
+ *     denda 2% × umur keterlambatan (maks. 12 bulan) dari iuran terakhir; bulan lalu umur 0 (belum berdenda);
+ *     total tagihan = iuran + denda + denda periode lalu − IBR (sisa iuran belum rinci), sama dengan LENSA (hp/app.html rincian).
  *  Butuh KitWilayah (kit/wilayah-pamekasan.js) untuk lokasi & kabupaten.
  * ===================================================================== */
 var KitJakon = (function () {
@@ -1845,7 +1856,30 @@ var KitJakon = (function () {
     return { status: 'Sesuai', kode: 'sesuai', simulasi: sim, selisih: iur - sim };
   }
 
-  return { TARIF: TARIF, iuran: iuran, JENIS: JENIS, URUT_JENIS: URUT_JENIS, jenisPekerjaan: jenisPekerjaan, lokasiProyek: lokasiProyek,
+  function bulat2(n) { return Math.round((+n || 0) * 100) / 100; }
+  /**
+   * Perkiraan tunggakan iuran CV (penerima upah) dari bulan tunggakan (koef ITW/ITB − 1) dan iuran terakhir.
+   * Bulan tertunggak = bulan data − n … bulan data − 1; umur = bulan data − bulan − 1 (bulan lalu = 0, belum berdenda).
+   * Denda per bulan = iuran × 2% × min(umur, 12). Paling banyak 59 bulan (sama dengan jendela 60 bulan LENSA).
+   * bulanData = 'yyyy-mm' (bulan data KC diterapkan) untuk label periode.
+   * opsi = { ibr, dendaLalu, dendaLaluKet }: IBR (ITW/ITB "Kecukupan IBR nilai") mengurangi tagihan; denda periode lalu menambah.
+   * Hasil { bulan, iuran, rows, totalIuran, totalDenda, total (iuran + denda), dendaLalu, dendaLaluKet, ibr, totalTagihan, lebih }.
+   */
+  function tunggakan(bulan, iuranTerakhir, bulanData, opsi) {
+    opsi = opsi || {};
+    var n = Math.max(0, Math.min(59, Math.floor(+bulan || 0))), iur = bulat2(iuranTerakhir), rows = [], ti = 0, td = 0;
+    var m = String(bulanData || '').match(/^(\d{4})-(\d{2})/), M0 = m ? (+m[1]) * 12 + (+m[2] - 1) : null;
+    for (var k = n; k >= 1; k--) {
+      var umur = k - 1, den = bulat2(iur * Math.min(umur, 12) * 0.02), M = M0 === null ? null : M0 - k;
+      rows.push({ periode: M === null ? '' : Math.floor(M / 12) + '-' + ('0' + (M % 12 + 1)).slice(-2), umur: umur, iuran: iur, denda: den, jumlah: bulat2(iur + den) });
+      ti += iur; td += den;
+    }
+    var dl = Math.max(0, bulat2(opsi.dendaLalu)), ibr = Math.max(0, bulat2(opsi.ibr)), sisa = bulat2(ti + td + dl - ibr);
+    return { bulan: n, iuran: iur, rows: rows, totalIuran: bulat2(ti), totalDenda: bulat2(td), total: bulat2(ti + td),
+      dendaLalu: dl, dendaLaluKet: dl ? String(opsi.dendaLaluKet || '') : '', ibr: ibr, totalTagihan: Math.max(0, sisa), lebih: sisa < 0 ? -sisa : 0 };
+  }
+
+  return { TARIF: TARIF, iuran: iuran, tunggakan: tunggakan, JENIS: JENIS, URUT_JENIS: URUT_JENIS, jenisPekerjaan: jenisPekerjaan, lokasiProyek: lokasiProyek,
     KATEGORI: KATEGORI, kunciPemilik: kunciPemilik, pemilik: pemilik, statusIuran: statusIuran };
 })();
 
@@ -1882,7 +1916,7 @@ var KitPeta = {
  *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
  *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
  * ---------------------------------------------------------------------- */
-var VERSI_APP = '2.3.0'; // 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
+var VERSI_APP = '2.3.2'; // 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
 var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
 var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
 
@@ -2423,16 +2457,25 @@ function sinkronDanTampil(btn) {
 function ownerCv(el) {
   var d = S.d, st = hitung(d.cv, function (c) { return c.Status; });
   var nPaket = hitung(d.paket.filter(function (p) { return p.CV_ID; }), function (p) { return p.CV_ID; });
-  el.innerHTML = '<div class="baris"><h2>CV/PT jasa konstruksi</h2><span class="sp"></span><button class="btn" id="bTambahCv">+ Tambah manual</button></div><div class="filters" id="fCv"></div><div class="filters" id="fCvPj"></div><div id="tCv"></div>';
+  el.innerHTML = '<div class="baris"><h2>CV/PT jasa konstruksi</h2><span class="sp"></span><button class="btn" id="bTambahCv">+ Tambah manual</button></div><div class="filters" id="fCv"></div><div class="filters" id="fCvPj"></div><div id="cvTotal"></div><div id="tCv"></div>';
   var idxPj = indeksPj(), stPj = hitung(d.cv, statusProyekCv); // 2.3.0 (Tahap 7): status proyek Jakon per CV
   var render = function () {
     var f = S.f.cvSt || 'Semua', fp = S.f.cvPj || 'Semua proyek';
-    var rows = d.cv.filter(function (c) { return (f === 'Semua' || c.Status === f) && (fp === 'Semua proyek' || statusProyekCv(c) === fp); }).map(function (c) { c._paket = nPaket[c.ID] || 0; c._pj = idxPj[c.ID] ? idxPj[c.ID].aktif.length : 0; c._stPj = statusProyekCv(c); return c; });
-    rows.sort(function (a, b) { return b._paket - a._paket || String(a.Nama).localeCompare(b.Nama); });
+    var rows = d.cv.filter(function (c) { return (f === 'Semua' || c.Status === f) && (fp === 'Semua proyek' || statusProyekCv(c) === fp); }).map(function (c) {
+      c._paket = nPaket[c.ID] || 0; c._pj = idxPj[c.ID] ? idxPj[c.ID].aktif.length : 0; c._stPj = statusProyekCv(c);
+      var t = tunggakanCv(c); c._iuranTg = Math.round(t.totalIuran); c._dendaTg = Math.round(t.totalDenda + t.dendaLalu); c._ibrTg = Math.round(t.ibr); c._totalTg = Math.round(t.totalTagihan); // 2.3.2: iuran + denda (+ periode lalu) − IBR
+      return c;
+    });
+    var urut = S.f.cvUrut || 'paket';
+    rows.sort(urut === 'tunggakan' ? function (a, b) { return b._totalTg - a._totalTg || String(a.Nama).localeCompare(b.Nama); } : function (a, b) { return b._paket - a._paket || String(a.Nama).localeCompare(b.Nama); });
+    $('#cvTotal').innerHTML = kartuTotalTunggakan(rows, urut);
+    $('#cvUrut').onchange = function () { S.f.cvUrut = this.value; render(); };
     tabel($('#tCv'), rows, [['Nama', 'Nama'], ['NPP', 'NPP'], [function (r) { return chip(r.Status) + (r.StatusManual ? ' <span class="muted">(manual)</span>' : ''); }, 'Status'],
-      [function (r) { return r.BulanTunggak === '' || r.BulanTunggak == null ? '-' : esc(r.BulanTunggak); }, 'Bln tunggak', 'num'], [function (r) { return r._paket || '-'; }, 'Paket', 'num'],
+      [function (r) { return r.BulanTunggak === '' || r.BulanTunggak == null ? '-' : esc(r.BulanTunggak); }, 'Bln tunggak', 'num'],
+      [function (r) { return rp(r._iuranTg); }, 'Iuran tertunggak', 'num'], [function (r) { return rp(r._dendaTg); }, 'Denda', 'num'], [function (r) { return r._ibrTg ? '− ' + rp(r._ibrTg) : '-'; }, 'IBR', 'num'], [function (r) { return r._totalTg ? '<b>' + rp(r._totalTg) + '</b>' : '-'; }, 'Total tagihan', 'num'],
+      [function (r) { return r._paket || '-'; }, 'Paket', 'num'],
       [function (r) { return chipProyek(r._stPj) + (r._pj ? ' <span class="muted">' + r._pj + '</span>' : ''); }, 'Proyek Jakon'], ['KecKantor', 'Kec. kantor'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Sumber', 'Sumber']],
-      { id: 'cv', klik: detailCv, csv: 'cv-jakon', csvKolom: [['Nama', 'Nama'], ['NPP', 'NPP'], ['Status', 'Status'], ['BulanTunggak', 'Bulan tunggak'], ['NominalTunggak', 'Nominal'], ['_paket', 'Jumlah paket'], ['_stPj', 'Proyek Jakon'], ['_pj', 'Proyek Jakon aktif'], ['KecKantor', 'Kecamatan kantor'], ['DesaKantor', 'Desa kantor'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Kontak', 'Kontak'], ['PelaksanaNama', 'Pelaksana'], ['PelaksanaHP', 'HP pelaksana'], ['AdminNama', 'Admin'], ['AdminHP', 'HP admin'], ['DirekturNama', 'Direktur'], ['DirekturHP', 'HP direktur'], ['Alamat', 'Alamat'], ['Catatan', 'Catatan']] });
+      { id: 'cv', klik: detailCv, csv: 'cv-jakon', csvKolom: [['Nama', 'Nama'], ['NPP', 'NPP'], ['Status', 'Status'], ['BulanTunggak', 'Bulan tunggak'], ['_iuranTg', 'Iuran tertunggak'], ['_dendaTg', 'Denda (perkiraan + periode lalu)'], ['_ibrTg', 'Sisa IBR'], ['_totalTg', 'Total tagihan'], ['_paket', 'Jumlah paket'], ['_stPj', 'Proyek Jakon'], ['_pj', 'Proyek Jakon aktif'], ['KecKantor', 'Kecamatan kantor'], ['DesaKantor', 'Desa kantor'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Kontak', 'Kontak'], ['PelaksanaNama', 'Pelaksana'], ['PelaksanaHP', 'HP pelaksana'], ['AdminNama', 'Admin'], ['AdminHP', 'HP admin'], ['DirekturNama', 'Direktur'], ['DirekturHP', 'HP direktur'], ['Alamat', 'Alamat'], ['Catatan', 'Catatan']] });
   };
   filterChips($('#fCv'), 'cvSt', [['Semua', d.cv.length]].concat(STATUS_CV.map(function (s) { return [s, st[s] || 0]; })), render);
   filterChips($('#fCvPj'), 'cvPj', [['Semua proyek', d.cv.length]].concat(STATUS_PROYEK_CV.map(function (s) { return [s, stPj[s] || 0]; })), render);
@@ -2445,10 +2488,11 @@ function detailCv(c) {
   var paket = baru ? [] : d.paket.filter(function (p) { return p.CV_ID === c.ID; });
   var users = baru ? [] : d.pengguna.filter(function (u) { return String(u.CV_IDs).split(',').indexOf(c.ID) >= 0; });
   modal('<h3>' + (baru ? 'Tambah CV/PT' : esc(c.Nama)) + '</h3>' +
-    (baru ? '<label class="f">Nama CV/PT</label><input type="text" id="cNama">' : '<div class="baris">' + chip(c.Status) + '<span class="muted">Status otomatis: ' + esc(c.StatusOtomatis || '-') + ' · Bulan tunggak: ' + esc(c.BulanTunggak === '' ? '-' : c.BulanTunggak) + ' · Nominal: ' + rp(c.NominalTunggak) + '</span></div><p class="muted">' + esc(c.JenisUsaha || '') + '</p>') +
+    (baru ? '<label class="f">Nama CV/PT</label><input type="text" id="cNama">' : '<div class="baris">' + chip(c.Status) + '<span class="muted">Status otomatis: ' + esc(c.StatusOtomatis || '-') + ' · Bulan tunggak: ' + esc(c.BulanTunggak === '' ? '-' : c.BulanTunggak) + '</span></div><p class="muted">' + esc(c.JenisUsaha || '') + '</p>' + blokRincianTunggakan(c)) + // 2.3.1
     '<div class="dua"><div><label class="f">NPP</label><input type="text" id="cNpp" value="' + esc(c.NPP || '') + '"></div><div><label class="f">Kontak (HP) <small>dari data KC</small></label><input type="tel" id="cKontak" value="' + esc(c.Kontak || '') + '"></div></div>' +
     formKontakCv(c) +
     '<label class="f">Alamat</label><input type="text" id="cAlamat" value="' + esc(c.Alamat || '') + '">' +
+    (baru ? '' : formDendaLaluCv(c)) + // 2.3.2: denda periode lalu (kosong = ikut LENSA)
     '<label class="f">Status manual <small>(mengalahkan status otomatis; kosongkan untuk ikut data KC)</small></label><select id="cStatus"><option value="">— ikut status otomatis —</option>' + STATUS_CV.concat(['Terdaftar – binaan pembina lain']).map(function (s) { return '<option ' + (c.StatusManual === s ? 'selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select>' +
     '<label class="f">Catatan</label><textarea id="cCat">' + esc(c.Catatan || '') + '</textarea>' +
     (baru ? '' : blokCvJakon(c) + '<h3>Lokasi kantor</h3><div id="cLok"></div>') + // 2.3.0: proyek Jakon & kecamatan kantor
@@ -2461,6 +2505,11 @@ function detailCv(c) {
       $('#cSimpan', bg).onclick = function () {
         var a = Object.assign({ id: c.ID, NPP: $('#cNpp', bg).value, Kontak: $('#cKontak', bg).value, Alamat: $('#cAlamat', bg).value, StatusManual: $('#cStatus', bg).value, Catatan: $('#cCat', bg).value }, ambilKontakCv(bg));
         if (baru) { a.Nama = $('#cNama', bg).value; if (!a.Nama) return toast('Isi nama', true); }
+        else {
+          var dl = $('#cDendaLalu', bg).value.trim();
+          if (dl && !/^[\d.,\s]+$/.test(dl.replace(/^rp\.?\s*/i, ''))) return toast('Denda periode lalu: isi angka rupiah saja', true);
+          a.DendaLaluManual = dl; a.DendaLaluManualKet = $('#cDendaLaluKet', bg).value;
+        }
         busy(this, call('simpanCv', a)).then(function () { bg.remove(); toast('Tersimpan'); return muatUlang(true); }).catch(function () { });
       };
     });
@@ -3660,6 +3709,80 @@ function statusProyekCv(c) {
 }
 function chipProyek(s) { return '<span class="chip ' + ({ 'Ada proyek aktif': 'aktif', 'Proyek berakhir ≤ 30 hari': 'belum', 'Tanpa proyek aktif': 'menunggak', 'Belum pernah ada proyek Jakon': 'nonaktif' }[s] || '') + '">' + esc(s) + '</span>'; }
 
+/* ---------- 2.3.1: tunggakan CV = iuran tertunggak + denda (rumus KitJakon.tunggakan = rincian LENSA) ----------
+   2.3.2: + denda periode lalu (isian SIGAP, atau ikut kartu PK LENSA) − sisa iuran belum rinci/IBR (ITW/ITB) = total tagihan */
+function iuranTerakhirCv(c) {
+  var i = Number(c.IuranTerakhir) || 0, b = Number(c.BulanTunggak) || 0;
+  if (!i && b > 0) i = (Number(c.NominalTunggak) || 0) / b; // data KC sebelum 2.4.2: tunggakan = bulan × iuran terakhir
+  return i;
+}
+function adaIsian(v) { return v !== '' && v !== null && v !== undefined; }
+/** Denda periode lalu yang berlaku: isian SIGAP (termasuk 0 = tidak ada) mengalahkan nilai dari LENSA. */
+function dendaLaluCv(c) {
+  if (adaIsian(c.DendaLaluManual)) return { nilai: Math.max(0, Number(c.DendaLaluManual) || 0), ket: String(c.DendaLaluManualKet || ''), sumber: 'SIGAP' };
+  return { nilai: Math.max(0, Number(c.DendaLalu) || 0), ket: String(c.DendaLaluKet || ''), sumber: 'LENSA' };
+}
+function tunggakanCv(c) {
+  var kunci = [c.BulanTunggak, c.IuranTerakhir, c.NominalTunggak, c.Diperbarui, c.IBR, c.DendaLalu, c.DendaLaluKet, c.DendaLaluManual, c.DendaLaluManualKet].join('|');
+  // bulan data: saat data KC diterapkan (Hub menggeser koef ke bulan kirim); tanpa tanggal → bulan ini
+  if (c._tgKunci !== kunci) {
+    var dl = dendaLaluCv(c);
+    c._tg = KitJakon.tunggakan(Number(c.BulanTunggak) || 0, iuranTerakhirCv(c), /^\d{4}-\d{2}/.test(String(c.Diperbarui || '')) ? String(c.Diperbarui).slice(0, 7) : today().slice(0, 7),
+      { ibr: Number(c.IBR) || 0, dendaLalu: dl.nilai, dendaLaluKet: dl.ket });
+    c._tg.sumberDendaLalu = dl.nilai ? dl.sumber : '';
+    c._tgKunci = kunci;
+  }
+  return c._tg;
+}
+function kartuTotalTunggakan(rows, urut) {
+  var n = 0, ti = 0, td = 0, tl = 0, tb = 0, tt = 0;
+  rows.forEach(function (c) { var t = tunggakanCv(c); if (t.totalTagihan > 0) { n++; ti += t.totalIuran; td += t.totalDenda; tl += t.dendaLalu; tb += Math.min(t.ibr, t.total + t.dendaLalu); tt += t.totalTagihan; } });
+  return '<div class="kartu tunggak-total"><div class="grid">' +
+    '<div><div class="l">CV ada tagihan (pada saringan ini)</div><div class="n">' + n.toLocaleString('id-ID') + '</div></div>' +
+    '<div><div class="l">Iuran tertunggak</div><div class="n">' + rp(ti) + '</div></div>' +
+    '<div><div class="l">Denda (perkiraan + periode lalu)</div><div class="n">' + rp(td + tl) + '</div>' + (tl ? '<div class="muted">termasuk denda periode lalu ' + rp(tl) + '</div>' : '') + '</div>' +
+    '<div><div class="l">Dikurangi sisa IBR</div><div class="n">' + (tb ? '− ' + rp(tb) : '-') + '</div></div>' +
+    '<div><div class="l">Total tagihan</div><div class="n merah">' + rp(tt) + '</div></div></div>' +
+    '<div class="baris" style="margin-top:8px"><span class="muted" style="flex:1">Iuran = bulan tunggakan × iuran terakhir (data KC, bulan berjalan belum dihitung). Denda 2% × umur keterlambatan per bulan, maks. 12 bulan. Ditambah denda periode lalu, dikurangi sisa iuran belum rinci (IBR) dari ITW/ITB — rumus sama dengan rincian LENSA PK.</span>' +
+    '<label class="muted">Urutkan <select id="cvUrut" style="width:auto"><option value="paket"' + (urut !== 'tunggakan' ? ' selected' : '') + '>Paket terbanyak</option><option value="tunggakan"' + (urut === 'tunggakan' ? ' selected' : '') + '>Total tagihan terbesar</option></select></label></div></div>';
+}
+function kodeIuranCv(c) { return /^\d{8}$/.test(String(c.NPP || '')) ? '4' + c.NPP + '000' : ''; }
+function blnTeks(p) { var m = String(p || '').match(/^(\d{4})-(\d{2})/); return m ? m[2] + '-' + m[1] : p; }
+function labelDendaLaluCv(t) { return 'Denda periode lalu' + (t.dendaLaluKet ? ' (' + t.dendaLaluKet + ')' : ''); }
+function teksRincianCv(c, t) {
+  var L = ['Halo, kami dari BPJS Ketenagakerjaan KC Pamekasan 👋', '', '📌 *' + c.Nama + '*', 'NPP: ' + (c.NPP || '-')];
+  t.rows.forEach(function (x, i) { L.push((i + 1) + ') ' + (blnTeks(x.periode) || 'bulan ke-' + (i + 1)) + ': ' + rp(x.iuran) + (x.denda ? ' + denda ' + rp(x.denda) + ' (2% × ' + Math.min(x.umur, 12) + ')' : '')); });
+  if (t.rows.length) { L.push('Total iuran: ' + rp(t.totalIuran)); L.push('Total denda: ' + rp(t.totalDenda)); }
+  if (t.dendaLalu) L.push(labelDendaLaluCv(t) + ': ' + rp(t.dendaLalu));
+  if (t.ibr) L.push('Sisa iuran belum rinci (IBR): − ' + rp(t.ibr));
+  L.push('💰 *Total tagihan: ' + rp(t.totalTagihan) + '*' + (t.lebih ? ' (saldo IBR lebih ' + rp(t.lebih) + ')' : ''));
+  if (kodeIuranCv(c)) L.push('🔑 Kode iuran: *' + kodeIuranCv(c) + '*');
+  L.push(''); L.push('ℹ️ Perkiraan dari iuran bulan terakhir. Bila perusahaan sedang tidak ada proyek, kepesertaan bisa diajukan penonaktifan agar tagihan tidak terus berjalan. Kami siap membantu 🙏');
+  return L.join('\n');
+}
+function blokRincianTunggakan(c) {
+  var t = tunggakanCv(c);
+  if (!t.total && !t.dendaLalu) return t.ibr ? '<p class="muted">Ada sisa iuran belum rinci (IBR) ' + rp(t.ibr) + ' — tidak ada tunggakan.</p>' : '';
+  var hp = c.AdminHP || c.Kontak || c.DirekturHP || c.PelaksanaHP;
+  var rinci = [t.bulan ? 'iuran ' + rp(t.totalIuran) + ' + denda ' + rp(t.totalDenda) + ' · ' + t.bulan + ' bulan' : '', t.dendaLalu ? '+ denda periode lalu ' + rp(t.dendaLalu) : '', t.ibr ? '− IBR ' + rp(t.ibr) : ''].filter(Boolean).join(' ');
+  return '<details class="rincian-tg"><summary>Total tagihan ' + rp(t.totalTagihan) + ' <span class="muted">(' + esc(rinci) + ')</span></summary>' +
+    '<div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>Periode</th><th class="num">Iuran</th><th class="num">Umur</th><th class="num">Denda</th><th class="num">Jumlah</th></tr></thead><tbody>' +
+    t.rows.map(function (x) { return '<tr><td>' + esc(blnTeks(x.periode) || '-') + '</td><td class="num">' + rp(x.iuran) + '</td><td class="num">' + (x.umur ? x.umur : '-') + '</td><td class="num">' + (x.denda ? rp(x.denda) : '-') + '</td><td class="num">' + rp(x.jumlah) + '</td></tr>'; }).join('') +
+    (t.rows.length ? '<tr><th>Jumlah</th><th class="num">' + rp(t.totalIuran) + '</th><th></th><th class="num">' + rp(t.totalDenda) + '</th><th class="num">' + rp(t.total) + '</th></tr>' : '') +
+    (t.dendaLalu ? '<tr><td colspan="4">' + esc(labelDendaLaluCv(t)) + ' <span class="muted">· ' + (t.sumberDendaLalu === 'SIGAP' ? 'isian SIGAP' : 'dari LENSA') + '</span></td><td class="num">' + rp(t.dendaLalu) + '</td></tr>' : '') +
+    (t.ibr ? '<tr><td colspan="4">Sisa iuran belum rinci (IBR) <span class="muted">· ITW/ITB</span></td><td class="num">− ' + rp(t.ibr) + '</td></tr>' : '') +
+    '<tr><th colspan="4">Total tagihan' + (t.lebih ? ' <span class="muted">(saldo IBR lebih ' + rp(t.lebih) + ')</span>' : '') + '</th><th class="num">' + rp(t.totalTagihan) + '</th></tr></tbody></table></div>' +
+    '<p class="muted">' + (t.bulan ? 'Iuran terakhir ' + rp(t.iuran) + ' (data KC). Denda 2% × umur keterlambatan, maks. 12 bulan; bulan lalu belum berdenda. ' : '') + 'Perkiraan — angka resmi tetap dari sistem.</p>' +
+    (hp ? '<a class="btn wa kecil" target="_blank" href="' + esc(waLink(hp, teksRincianCv(c, t))) + '">WA rincian tagihan</a>' : '') + '</details>';
+}
+/** Isian denda periode lalu di detail CV: kosong = ikut LENSA; 0 = tidak ada. */
+function formDendaLaluCv(c) {
+  var lensa = Number(c.DendaLalu) || 0, manual = adaIsian(c.DendaLaluManual);
+  return '<div class="dua"><div><label class="f">Denda periode lalu (Rp) <small>' + (lensa ? 'LENSA: ' + rp(lensa) + (c.DendaLaluKet ? ' · ' + esc(c.DendaLaluKet) : '') : 'kosongkan untuk ikut LENSA') + '</small></label>' +
+    '<input type="text" inputmode="numeric" id="cDendaLalu" placeholder="' + (lensa ? esc(String(lensa)) + ' (ikut LENSA)' : 'ikut LENSA') + '" value="' + (manual ? esc(String(c.DendaLaluManual)) : '') + '"></div>' +
+    '<div><label class="f">Keterangan denda <small>mis. sisa denda 2025</small></label><input type="text" id="cDendaLaluKet" maxlength="120" value="' + esc(c.DendaLaluManualKet || '') + '"></div></div>';
+}
+
 /* ---------- unggah laporan (menu Data) ---------- */
 function kartuUnggahJakon() {
   var lap = (S.d.infoProyek && S.d.infoProyek.laporan) || [];
@@ -3735,8 +3858,8 @@ function pasangRingkasJakon(el) {
         { id: 'prioPk', hp: 1, klik: detailPaket, csv: 'paket-belum-jakon', kosong: 'Semua paket berpemenang sudah tercatat Jakon.' });
     }
     var fn = PRIORITAS.filter(function (x) { return x[0] === f; })[0][1], idx = indeksPj();
-    var rows = S.d.cv.filter(fn).sort(function (a, b) { return (Number(b.NominalTunggak) || 0) - (Number(a.NominalTunggak) || 0); });
-    tabel(w, rows, [['Nama', 'CV/PT', 'judul-hp'], [function (r) { return chip(r.Status) + (r.BulanTunggak ? ' <span class="muted">' + esc(r.BulanTunggak) + ' bln</span>' : ''); }, 'Status'], [function (r) { return rp(r.NominalTunggak); }, 'Tunggakan', 'num'],
+    var rows = S.d.cv.filter(fn).sort(function (a, b) { return tunggakanCv(b).totalTagihan - tunggakanCv(a).totalTagihan; });
+    tabel(w, rows, [['Nama', 'CV/PT', 'judul-hp'], [function (r) { return chip(r.Status) + (r.BulanTunggak ? ' <span class="muted">' + esc(r.BulanTunggak) + ' bln</span>' : ''); }, 'Status'], [function (r) { return rp(tunggakanCv(r).totalTagihan); }, 'Total tagihan', 'num'],
       [function (r) { return chipProyek(statusProyekCv(r)); }, 'Proyek Jakon'], [function (r) { var x = idx[r.ID]; var a = x ? x.aktif.slice().sort(function (p, q) { return akhirPj(p).localeCompare(akhirPj(q)); })[0] : null; return a ? esc(tglPendek(akhirPj(a))) : '-'; }, 'Proyek berakhir'],
       ['KecKantor', 'Kec. kantor'], ['Pembina', 'Pembina']],
       { id: 'prio2', hp: 1, klik: detailCv, csv: 'prioritas-penertiban', kosong: 'Tidak ada CV pada kelompok ini.' });
@@ -3905,7 +4028,7 @@ function pasangCvJakon(bg, c) {
 
 /* ---------- Peta panas ---------- */
 function ukuranPanas(basis, pengamat) {
-  if (basis === 'cv') return [['n', 'CV/PT', 'b'], ['p', 'Punya proyek aktif', 'b'], ['m', 'Menunggak', 'r'], ['x', 'Tanpa proyek aktif', 'r'], ['g', 'Tunggakan (Rp)', 'r']];
+  if (basis === 'cv') return [['n', 'CV/PT', 'b'], ['p', 'Punya proyek aktif', 'b'], ['m', 'Menunggak', 'r'], ['x', 'Tanpa proyek aktif', 'r'], ['g', 'Total tagihan (Rp)', 'r']];
   return pengamat ? [['n', 'Jumlah proyek', 'b'], ['t', 'Tenaga kerja', 'b'], ['a', 'Berakhir ≤ 30 hari', 'r'], ['b', 'Paket Pemkab belum Jakon', 'r']]
     : [['n', 'Jumlah proyek', 'b'], ['v', 'Nilai proyek', 'b'], ['t', 'Tenaga kerja', 'b'], ['a', 'Berakhir ≤ 30 hari', 'r'], ['z', 'Iuran perlu cek', 'r'], ['b', 'Paket Pemkab belum Jakon', 'r']];
 }
@@ -3925,7 +4048,8 @@ function wadahPanas(basis, f) {
       var st = statusProyekCv(c), isi = function (s) {
         s.n++; s.daftar.push(c);
         if (/^(Ada|Proyek berakhir)/.test(st)) s.p++;
-        if (c.Status === 'Menunggak') { s.m++; s.g += Number(c.NominalTunggak) || 0; }
+        if (c.Status === 'Menunggak') s.m++;
+        s.g += tunggakanCv(c).totalTagihan; // 2.3.2: + denda periode lalu − IBR
         if (/^(Tanpa|Belum pernah)/.test(st) && c.Status !== 'Nonaktif') s.x++;
       };
       var k = c.KecKantor || '';
@@ -4041,7 +4165,7 @@ function daftarPanas(nama, s, basis, pengamat, ukur) {
   var w = $('#pnDaftar', bg);
   if (paket) return tabel(w, s.paket, [['NamaPaket', 'Paket', 'judul-hp'], ['Pemenang', 'Pemenang'], ['Satker', 'Satker']].concat(pengamat ? [] : [[function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num']]),
     { id: 'pnPk', hp: 1, klik: function (p) { bg.remove(); detailPaket(p); }, csv: 'paket-belum-jakon-' + nama });
-  if (basis === 'cv') return tabel(w, s.daftar, [['Nama', 'CV/PT', 'judul-hp'], [function (r) { return chip(r.Status); }, 'Status'], [function (r) { return chipProyek(statusProyekCv(r)); }, 'Proyek Jakon'], [function (r) { return rp(r.NominalTunggak); }, 'Tunggakan', 'num'], ['DesaKantor', 'Desa']],
+  if (basis === 'cv') return tabel(w, s.daftar, [['Nama', 'CV/PT', 'judul-hp'], [function (r) { return chip(r.Status); }, 'Status'], [function (r) { return chipProyek(statusProyekCv(r)); }, 'Proyek Jakon'], [function (r) { return rp(tunggakanCv(r).totalTagihan); }, 'Total tagihan', 'num'], ['DesaKantor', 'Desa']],
     { id: 'pnCv', hp: 1, klik: function (c) { bg.remove(); detailCv(c); }, csv: 'cv-' + nama });
   tabel(w, s.daftar, [['NamaProyek', 'Proyek', 'judul-hp'], ['NamaBU', 'Pelaksana'], ['Desa', 'Desa'], ['JenisPekerjaan', 'Jenis']].concat(pengamat ? [['TK', 'TK', 'num']] : [[function (r) { return jt(r.NilaiProyek); }, 'Nilai', 'num'], ['TK', 'TK', 'num']])
     .concat([[function (r) { return esc(tglPendek(akhirPj(r))) + (berakhir30(r) ? ' ' + chip('≤ 30 hari') : ''); }, 'Berakhir']]),
