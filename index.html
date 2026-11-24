@@ -157,9 +157,10 @@ table.panas-tabel{border-collapse:separate;border-spacing:2px;font-size:12.5px}
 .tunggak-total .grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .tunggak-total .l{color:var(--abu);font-size:12.5px}.tunggak-total .n{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}.tunggak-total .n.merah{color:var(--merah)}
 .tunggak-total select{padding:4px 8px;font-size:13px;margin-left:4px}
-details.rincian-tg{margin:4px 0 10px;border:1px solid #FFEDD5;background:#FFFBF7;border-radius:var(--r);padding:8px 10px}
+details.rincian-tg{margin:4px 0 10px;border:1px solid #FFEDD5;background:#FFFBF7;border-radius:var(--r);padding:8px 8px}
 details.rincian-tg summary{cursor:pointer;font-weight:700;color:var(--merah)}
 th.num{text-align:right}
+details.rincian-tg table{font-size:12.5px}details.rincian-tg th,details.rincian-tg td{padding:6px 4px}details.rincian-tg th:first-child,details.rincian-tg td:first-child{padding-left:8px}details.rincian-tg th:last-child,details.rincian-tg td:last-child{padding-right:8px}details.rincian-tg td:first-child{white-space:nowrap}details.rincian-tg td[colspan]{white-space:normal}details.rincian-tg small{font-size:11px}
 </style>
 </head>
 <body>
@@ -1859,7 +1860,8 @@ var KitJakon = (function () {
   function bulat2(n) { return Math.round((+n || 0) * 100) / 100; }
   /**
    * Perkiraan tunggakan iuran CV (penerima upah) dari bulan tunggakan (koef ITW/ITB − 1) dan iuran terakhir.
-   * Bulan tertunggak = bulan data − n … bulan data − 1; umur = bulan data − bulan − 1 (bulan lalu = 0, belum berdenda).
+   * Rincian = bulan data − n … bulan data (bulan berjalan ikut ditagih, sama dengan LENSA); umur = bulan data − bulan − 1
+   * (bulan lalu 0, bulan berjalan −1: belum berdenda). n = 0 → tanpa baris (status lunas/tertib).
    * Denda per bulan = iuran × 2% × min(umur, 12). Paling banyak 59 bulan (sama dengan jendela 60 bulan LENSA).
    * bulanData = 'yyyy-mm' (bulan data KC diterapkan) untuk label periode.
    * opsi = { ibr, dendaLalu, dendaLaluKet }: IBR (ITW/ITB "Kecukupan IBR nilai") mengurangi tagihan; denda periode lalu menambah.
@@ -1869,13 +1871,16 @@ var KitJakon = (function () {
     opsi = opsi || {};
     var n = Math.max(0, Math.min(59, Math.floor(+bulan || 0))), iur = bulat2(iuranTerakhir), rows = [], ti = 0, td = 0;
     var m = String(bulanData || '').match(/^(\d{4})-(\d{2})/), M0 = m ? (+m[1]) * 12 + (+m[2] - 1) : null;
-    for (var k = n; k >= 1; k--) {
-      var umur = k - 1, den = bulat2(iur * Math.min(umur, 12) * 0.02), M = M0 === null ? null : M0 - k;
-      rows.push({ periode: M === null ? '' : Math.floor(M / 12) + '-' + ('0' + (M % 12 + 1)).slice(-2), umur: umur, iuran: iur, denda: den, jumlah: bulat2(iur + den) });
+    // sama dengan rincian LENSA: dari bulan setelah posting terakhir s.d. bulan berjalan (bulan data); umur = bulan data − bulan − 1,
+    // bulan lalu (umur 0) dan bulan berjalan (umur −1) belum berdenda. Bulan berjalan hanya ditambahkan bila ada tunggakan
+    // (bulan tunggakan 0 bisa berarti sudah lunas s.d. bulan ini).
+    for (var k = n; k >= (n ? 0 : 1); k--) {
+      var umur = k - 1, den = bulat2(iur * Math.min(Math.max(umur, 0), 12) * 0.02), M = M0 === null ? null : M0 - k;
+      rows.push({ periode: M === null ? '' : Math.floor(M / 12) + '-' + ('0' + (M % 12 + 1)).slice(-2), umur: umur, iuran: iur, denda: den, jumlah: bulat2(iur + den), berjalan: k === 0 });
       ti += iur; td += den;
     }
     var dl = Math.max(0, bulat2(opsi.dendaLalu)), ibr = Math.max(0, bulat2(opsi.ibr)), sisa = bulat2(ti + td + dl - ibr);
-    return { bulan: n, iuran: iur, rows: rows, totalIuran: bulat2(ti), totalDenda: bulat2(td), total: bulat2(ti + td),
+    return { bulan: n, berjalan: n > 0, iuran: iur, rows: rows, totalIuran: bulat2(ti), totalDenda: bulat2(td), total: bulat2(ti + td),
       dendaLalu: dl, dendaLaluKet: dl ? String(opsi.dendaLaluKet || '') : '', ibr: ibr, totalTagihan: Math.max(0, sisa), lebih: sisa < 0 ? -sisa : 0 };
   }
 
@@ -1916,7 +1921,7 @@ var KitPeta = {
  *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
  *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
  * ---------------------------------------------------------------------- */
-var VERSI_APP = '2.3.4'; // 2.3.4: kolom Gudang laporan Proyek Jakon — Menunggu (diambil LENSA ±1 jam) / Tersimpan G… · 2.3.3: istilah Peta → Maps, Peta panas → Heat maps · 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
+var VERSI_APP = '2.3.5'; // 2.3.5: rincian tagihan CV s.d. bulan berjalan (sama dengan LENSA) · 2.3.4: kolom Gudang laporan Proyek Jakon — Menunggu (diambil LENSA ±1 jam) / Tersimpan G… · 2.3.3: istilah Peta → Maps, Peta panas → Heat maps · 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
 var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
 var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
 
@@ -2472,10 +2477,10 @@ function ownerCv(el) {
     $('#cvUrut').onchange = function () { S.f.cvUrut = this.value; render(); };
     tabel($('#tCv'), rows, [['Nama', 'Nama'], ['NPP', 'NPP'], [function (r) { return chip(r.Status) + (r.StatusManual ? ' <span class="muted">(manual)</span>' : ''); }, 'Status'],
       [function (r) { return r.BulanTunggak === '' || r.BulanTunggak == null ? '-' : esc(r.BulanTunggak); }, 'Bln tunggak', 'num'],
-      [function (r) { return rp(r._iuranTg); }, 'Iuran tertunggak', 'num'], [function (r) { return rp(r._dendaTg); }, 'Denda', 'num'], [function (r) { return r._ibrTg ? '− ' + rp(r._ibrTg) : '-'; }, 'IBR', 'num'], [function (r) { return r._totalTg ? '<b>' + rp(r._totalTg) + '</b>' : '-'; }, 'Total tagihan', 'num'],
+      [function (r) { return rp(r._iuranTg); }, 'Iuran', 'num'], [function (r) { return rp(r._dendaTg); }, 'Denda', 'num'], [function (r) { return r._ibrTg ? '− ' + rp(r._ibrTg) : '-'; }, 'IBR', 'num'], [function (r) { return r._totalTg ? '<b>' + rp(r._totalTg) + '</b>' : '-'; }, 'Total tagihan', 'num'],
       [function (r) { return r._paket || '-'; }, 'Paket', 'num'],
       [function (r) { return chipProyek(r._stPj) + (r._pj ? ' <span class="muted">' + r._pj + '</span>' : ''); }, 'Proyek Jakon'], ['KecKantor', 'Kec. kantor'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Sumber', 'Sumber']],
-      { id: 'cv', klik: detailCv, csv: 'cv-jakon', csvKolom: [['Nama', 'Nama'], ['NPP', 'NPP'], ['Status', 'Status'], ['BulanTunggak', 'Bulan tunggak'], ['_iuranTg', 'Iuran tertunggak'], ['_dendaTg', 'Denda (perkiraan + periode lalu)'], ['_ibrTg', 'Sisa IBR'], ['_totalTg', 'Total tagihan'], ['_paket', 'Jumlah paket'], ['_stPj', 'Proyek Jakon'], ['_pj', 'Proyek Jakon aktif'], ['KecKantor', 'Kecamatan kantor'], ['DesaKantor', 'Desa kantor'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Kontak', 'Kontak'], ['PelaksanaNama', 'Pelaksana'], ['PelaksanaHP', 'HP pelaksana'], ['AdminNama', 'Admin'], ['AdminHP', 'HP admin'], ['DirekturNama', 'Direktur'], ['DirekturHP', 'HP direktur'], ['Alamat', 'Alamat'], ['Catatan', 'Catatan']] });
+      { id: 'cv', klik: detailCv, csv: 'cv-jakon', csvKolom: [['Nama', 'Nama'], ['NPP', 'NPP'], ['Status', 'Status'], ['BulanTunggak', 'Bulan tunggak'], ['_iuranTg', 'Iuran s.d. bulan berjalan'], ['_dendaTg', 'Denda (perkiraan + periode lalu)'], ['_ibrTg', 'Sisa IBR'], ['_totalTg', 'Total tagihan'], ['_paket', 'Jumlah paket'], ['_stPj', 'Proyek Jakon'], ['_pj', 'Proyek Jakon aktif'], ['KecKantor', 'Kecamatan kantor'], ['DesaKantor', 'Desa kantor'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Kontak', 'Kontak'], ['PelaksanaNama', 'Pelaksana'], ['PelaksanaHP', 'HP pelaksana'], ['AdminNama', 'Admin'], ['AdminHP', 'HP admin'], ['DirekturNama', 'Direktur'], ['DirekturHP', 'HP direktur'], ['Alamat', 'Alamat'], ['Catatan', 'Catatan']] });
   };
   filterChips($('#fCv'), 'cvSt', [['Semua', d.cv.length]].concat(STATUS_CV.map(function (s) { return [s, st[s] || 0]; })), render);
   filterChips($('#fCvPj'), 'cvPj', [['Semua proyek', d.cv.length]].concat(STATUS_PROYEK_CV.map(function (s) { return [s, stPj[s] || 0]; })), render);
@@ -3739,11 +3744,11 @@ function kartuTotalTunggakan(rows, urut) {
   rows.forEach(function (c) { var t = tunggakanCv(c); if (t.totalTagihan > 0) { n++; ti += t.totalIuran; td += t.totalDenda; tl += t.dendaLalu; tb += Math.min(t.ibr, t.total + t.dendaLalu); tt += t.totalTagihan; } });
   return '<div class="kartu tunggak-total"><div class="grid">' +
     '<div><div class="l">CV ada tagihan (pada saringan ini)</div><div class="n">' + n.toLocaleString('id-ID') + '</div></div>' +
-    '<div><div class="l">Iuran tertunggak</div><div class="n">' + rp(ti) + '</div></div>' +
+    '<div><div class="l">Iuran s.d. bulan berjalan</div><div class="n">' + rp(ti) + '</div></div>' +
     '<div><div class="l">Denda (perkiraan + periode lalu)</div><div class="n">' + rp(td + tl) + '</div>' + (tl ? '<div class="muted">termasuk denda periode lalu ' + rp(tl) + '</div>' : '') + '</div>' +
     '<div><div class="l">Dikurangi sisa IBR</div><div class="n">' + (tb ? '− ' + rp(tb) : '-') + '</div></div>' +
     '<div><div class="l">Total tagihan</div><div class="n merah">' + rp(tt) + '</div></div></div>' +
-    '<div class="baris" style="margin-top:8px"><span class="muted" style="flex:1">Iuran = bulan tunggakan × iuran terakhir (data KC, bulan berjalan belum dihitung). Denda 2% × umur keterlambatan per bulan, maks. 12 bulan. Ditambah denda periode lalu, dikurangi sisa iuran belum rinci (IBR) dari ITW/ITB — rumus sama dengan rincian LENSA PK.</span>' +
+    '<div class="baris" style="margin-top:8px"><span class="muted" style="flex:1">Iuran = (bulan tunggakan + bulan berjalan) × iuran terakhir (data KC), sama dengan rincian LENSA. Denda 2% × umur keterlambatan per bulan, maks. 12 bulan; bulan lalu & bulan berjalan belum berdenda. Ditambah denda periode lalu, dikurangi sisa iuran belum rinci (IBR) dari ITW/ITB — rumus sama dengan rincian LENSA PK.</span>' +
     '<label class="muted">Urutkan <select id="cvUrut" style="width:auto"><option value="paket"' + (urut !== 'tunggakan' ? ' selected' : '') + '>Paket terbanyak</option><option value="tunggakan"' + (urut === 'tunggakan' ? ' selected' : '') + '>Total tagihan terbesar</option></select></label></div></div>';
 }
 function kodeIuranCv(c) { return /^\d{8}$/.test(String(c.NPP || '')) ? '4' + c.NPP + '000' : ''; }
@@ -3760,19 +3765,21 @@ function teksRincianCv(c, t) {
   L.push(''); L.push('ℹ️ Perkiraan dari iuran bulan terakhir. Bila perusahaan sedang tidak ada proyek, kepesertaan bisa diajukan penonaktifan agar tagihan tidak terus berjalan. Kami siap membantu 🙏');
   return L.join('\n');
 }
+function angkaTg(n) { n = Number(n); return isNaN(n) || !n ? '-' : n.toLocaleString('id-ID', { maximumFractionDigits: 0 }); }
 function blokRincianTunggakan(c) {
   var t = tunggakanCv(c);
   if (!t.total && !t.dendaLalu) return t.ibr ? '<p class="muted">Ada sisa iuran belum rinci (IBR) ' + rp(t.ibr) + ' — tidak ada tunggakan.</p>' : '';
-  var hp = c.AdminHP || c.Kontak || c.DirekturHP || c.PelaksanaHP;
-  var rinci = [t.bulan ? 'iuran ' + rp(t.totalIuran) + ' + denda ' + rp(t.totalDenda) + ' · ' + t.bulan + ' bulan' : '', t.dendaLalu ? '+ denda periode lalu ' + rp(t.dendaLalu) : '', t.ibr ? '− IBR ' + rp(t.ibr) : ''].filter(Boolean).join(' ');
+  var hp = c.AdminHP || c.Kontak || c.DirekturHP || c.PelaksanaHP, akhir = t.rows.length ? t.rows[t.rows.length - 1] : null;
+  var rinci = [t.rows.length ? 'iuran ' + rp(t.totalIuran) + (t.totalDenda ? ' + denda ' + rp(t.totalDenda) : '') + ' · ' + t.rows.length + ' bulan' + (akhir && akhir.periode ? ' s.d. ' + blnTeks(akhir.periode) : '') : '',
+    t.dendaLalu ? '+ denda periode lalu ' + rp(t.dendaLalu) : '', t.ibr ? '− IBR ' + rp(t.ibr) : ''].filter(Boolean).join(' ');
   return '<details class="rincian-tg"><summary>Total tagihan ' + rp(t.totalTagihan) + ' <span class="muted">(' + esc(rinci) + ')</span></summary>' +
     '<div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>Periode</th><th class="num">Iuran</th><th class="num">Umur</th><th class="num">Denda</th><th class="num">Jumlah</th></tr></thead><tbody>' +
-    t.rows.map(function (x) { return '<tr><td>' + esc(blnTeks(x.periode) || '-') + '</td><td class="num">' + rp(x.iuran) + '</td><td class="num">' + (x.umur ? x.umur : '-') + '</td><td class="num">' + (x.denda ? rp(x.denda) : '-') + '</td><td class="num">' + rp(x.jumlah) + '</td></tr>'; }).join('') +
-    (t.rows.length ? '<tr><th>Jumlah</th><th class="num">' + rp(t.totalIuran) + '</th><th></th><th class="num">' + rp(t.totalDenda) + '</th><th class="num">' + rp(t.total) + '</th></tr>' : '') +
-    (t.dendaLalu ? '<tr><td colspan="4">' + esc(labelDendaLaluCv(t)) + ' <span class="muted">· ' + (t.sumberDendaLalu === 'SIGAP' ? 'isian SIGAP' : 'dari LENSA') + '</span></td><td class="num">' + rp(t.dendaLalu) + '</td></tr>' : '') +
-    (t.ibr ? '<tr><td colspan="4">Sisa iuran belum rinci (IBR) <span class="muted">· ITW/ITB</span></td><td class="num">− ' + rp(t.ibr) + '</td></tr>' : '') +
-    '<tr><th colspan="4">Total tagihan' + (t.lebih ? ' <span class="muted">(saldo IBR lebih ' + rp(t.lebih) + ')</span>' : '') + '</th><th class="num">' + rp(t.totalTagihan) + '</th></tr></tbody></table></div>' +
-    '<p class="muted">' + (t.bulan ? 'Iuran terakhir ' + rp(t.iuran) + ' (data KC). Denda 2% × umur keterlambatan, maks. 12 bulan; bulan lalu belum berdenda. ' : '') + 'Perkiraan — angka resmi tetap dari sistem.</p>' +
+    t.rows.map(function (x) { return '<tr><td>' + esc(blnTeks(x.periode) || '-') + (x.berjalan ? '<br><small class="muted">berjalan</small>' : '') + '</td><td class="num">' + angkaTg(x.iuran) + '</td><td class="num">' + (x.umur > 0 ? x.umur : '-') + '</td><td class="num">' + angkaTg(x.denda) + '</td><td class="num">' + angkaTg(x.jumlah) + '</td></tr>'; }).join('') +
+    (t.rows.length ? '<tr><th>Jumlah</th><th class="num">' + angkaTg(t.totalIuran) + '</th><th></th><th class="num">' + angkaTg(t.totalDenda) + '</th><th class="num">' + angkaTg(t.total) + '</th></tr>' : '') +
+    (t.dendaLalu ? '<tr><td colspan="4">' + esc(labelDendaLaluCv(t)) + ' <span class="muted">· ' + (t.sumberDendaLalu === 'SIGAP' ? 'isian SIGAP' : 'dari LENSA') + '</span></td><td class="num">' + angkaTg(t.dendaLalu) + '</td></tr>' : '') +
+    (t.ibr ? '<tr><td colspan="4">Sisa iuran belum rinci (IBR) <span class="muted">· ITW/ITB</span></td><td class="num">− ' + angkaTg(t.ibr) + '</td></tr>' : '') +
+    '<tr><th colspan="4">Total tagihan' + (t.lebih ? ' <span class="muted">(saldo IBR lebih ' + rp(t.lebih) + ')</span>' : '') + '</th><th class="num">' + angkaTg(t.totalTagihan) + '</th></tr></tbody></table></div>' +
+    '<p class="muted">Angka dalam rupiah. ' + (t.rows.length ? 'Iuran terakhir ' + rp(t.iuran) + ' (data KC), dihitung s.d. bulan berjalan. Denda 2% × umur keterlambatan, maks. 12 bulan; bulan lalu & bulan berjalan belum berdenda. ' : '') + 'Perkiraan — angka resmi tetap dari sistem.</p>' +
     (hp ? '<a class="btn wa kecil" target="_blank" href="' + esc(waLink(hp, teksRincianCv(c, t))) + '">WA rincian tagihan</a>' : '') + '</details>';
 }
 /** Isian denda periode lalu di detail CV: kosong = ikut LENSA; 0 = tidak ada. */
