@@ -1374,7 +1374,7 @@ var KitImpor = (function () {
   /* ---------------- laporan ringkas (dikirim ke Gudang) ---------------- */
 
   /** Jenis yang disimpan di Gudang Laporan KC (Kartu Iuran tetap di LENSA; Status PK hanya Monitor). */
-  var GUDANG = { ITW_ITB: true, MONITORING: true, DATA_BU: true, KPI084: true, KPI085: true, IBR: true };
+  var GUDANG = { ITW_ITB: true, MONITORING: true, DATA_BU: true, KPI084: true, KPI085: true, IBR: true, PROYEK_JAKON: true }; // PROYEK_JAKON: salinan dari SIGAP Jakon (Hub 1.9)
   var MAKS_JUDUL_TEKS = 4000;
 
   /** Hasil urai → laporan ringkas: hanya kolom yang terbaca, nilai teks apa adanya. */
@@ -1916,7 +1916,7 @@ var KitPeta = {
  *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
  *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
  * ---------------------------------------------------------------------- */
-var VERSI_APP = '2.3.2'; // 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
+var VERSI_APP = '2.3.4'; // 2.3.4: kolom Gudang laporan Proyek Jakon — Menunggu (diambil LENSA ±1 jam) / Tersimpan G… · 2.3.3: istilah Peta → Maps, Peta panas → Heat maps · 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
 var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
 var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
 
@@ -2394,8 +2394,8 @@ function tampilOwner() {
     ['ring', 'Ringkasan', ownerRingkasan],
     ['cv', 'CV/PT', ownerCv],
     ['proyek', 'Proyek', ownerProyek],
-    ['peta', 'Peta', tabPeta, (d.lokasi || []).filter(function (l) { return l.Status === 'Belum dicek'; }).length || ''],
-    ['panas', 'Peta panas', tabPanas], // 2.3.0 (Tahap 7)
+    ['peta', 'Maps', tabPeta, (d.lokasi || []).filter(function (l) { return l.Status === 'Belum dicek'; }).length || ''],
+    ['panas', 'Heat maps', tabPanas], // 2.3.0 (Tahap 7) · 2.3.3: istilah Maps / Heat maps
     ['peng', 'Pengajuan', ownerPengajuan, nPeng || ''],
     S.me.peranSuite === 'Pemilik' ? ['user', 'Akses', ownerAkses, d.akses.length || ''] : null,
     ['data', 'Data', ownerData],
@@ -2623,7 +2623,7 @@ function ownerSetelan(el) {
    PEMKAB
    ============================================================ */
 function tampilPemkab() {
-  kerangka([['rekap', 'Rekap', pemkabRekap], ['proyek', 'Proyek', pemkabProyek], ['peta', 'Peta', tabPeta], ['panas', 'Peta panas', tabPanas], ['cv', 'Status CV', pemkabCv]]);
+  kerangka([['rekap', 'Rekap', pemkabRekap], ['proyek', 'Proyek', pemkabProyek], ['peta', 'Maps', tabPeta], ['panas', 'Heat maps', tabPanas], ['cv', 'Status CV', pemkabCv]]);
 }
 
 /** 2.0.1: status yang dihitung "terealisasi" (proyek sudah jalan). */
@@ -3351,7 +3351,7 @@ function buatPeta(el, opsi) {
   el.classList.add('peta-wadah');
   el.innerHTML = '<div class="peta-geser"><div class="peta-ubin"></div><div class="peta-titik"></div></div>' +
     '<div class="peta-tombol"><button type="button" data-penuh aria-label="Layar penuh" title="Layar penuh">⛶</button><button type="button" data-z="1" aria-label="Perbesar">+</button><button type="button" data-z="-1" aria-label="Perkecil">−</button></div>' +
-    '<button type="button" class="peta-selesai" data-penuh>✕ Kecilkan peta</button>' +
+    '<button type="button" class="peta-selesai" data-penuh>✕ Kecilkan maps</button>' +
     '<div class="peta-hak">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a></div>';
   var geser = el.querySelector('.peta-geser'), ubin = el.querySelector('.peta-ubin'), lap = el.querySelector('.peta-titik');
   var ukuran = function () { return { w: el.clientWidth || 300, h: el.clientHeight || 240 }; };
@@ -3488,7 +3488,7 @@ function namaSasaran(l) {
   var p = S.d.paket.filter(function (x) { return x.ID === l.PAKET_ID; })[0]; return p ? p.NamaPaket : 'Proyek';
 }
 function ringkasLokasi(l) {
-  var cara = l.Sumber === 'Peta' ? 'dipilih di peta' : l.Sumber === 'Google Maps' ? 'dari Google Maps' : l.Akurasi ? 'GPS ±' + l.Akurasi + ' m' : '';
+  var cara = l.Sumber === 'Peta' ? 'dipilih di maps' : l.Sumber === 'Google Maps' ? 'dari Google Maps' : l.Akurasi ? 'GPS ±' + l.Akurasi + ' m' : '';
   return '<div class="baris" style="flex-wrap:wrap;gap:6px">' + chip(l.Status) + '<span class="muted">' + esc([l.Waktu, l.OlehNama ? 'oleh ' + l.OlehNama : '', cara, l.AdaFoto ? 'ada foto' : ''].filter(Boolean).join(' · ')) + '</span></div>' +
     (l.Catatan ? '<div class="muted">Catatan: ' + esc(l.Catatan) + '</div>' : '') +
     (l.CatatanCek ? '<div class="muted" style="color:' + (l.Status === 'Tidak cocok' ? 'var(--merah)' : 'inherit') + '">Petugas: ' + esc(l.CatatanCek) + '</div>' : '');
@@ -3574,7 +3574,7 @@ function formRekamLokasi(jenis, x, selesai) {
   var owner = S.me.peran === 'OWNER', kantor = jenis === 'Kantor', nama = kantor ? 'kantor' : 'proyek';
   var lama = lokasiAktif(jenis, x.ID), batas = (S.d.info && S.d.info.geotagAkurasi) || 100, titik = null, peta = null;
   modal('<h3>Rekam lokasi ' + nama + '</h3><div class="muted">' + esc(kantor ? x.Nama : x.NamaPaket) + '</div>' +
-    '<div class="info">' + (owner ? 'Ambil titik GPS saat berada di lokasi, atau <b>ketuk peta</b> untuk memilih / menggeser titik.' :
+    '<div class="info">' + (owner ? 'Ambil titik GPS saat berada di lokasi, atau <b>ketuk maps</b> untuk memilih / menggeser titik.' :
       'Berdirilah di ' + (kantor ? 'kantor perusahaan' : 'lokasi proyek') + ', nyalakan GPS, lalu ambil titik. Titik akan dicek petugas KC.') + '</div>' +
     '<div id="lkPeta" class="sedang"></div>' +
     '<div class="baris" style="margin-top:8px;flex-wrap:wrap"><button type="button" class="btn utama" id="lkGps">📍 Ambil titik GPS</button><span class="muted" id="lkInfo"></span></div>' +
@@ -3587,7 +3587,7 @@ function formRekamLokasi(jenis, x, selesai) {
       var tampil = function () {
         var kurang = titik && titik.sumber === 'GPS' && titik.akurasi > batas;
         $('#lkInfo', bg).innerHTML = !titik ? '' : titik.sumber === 'GPS' ? 'GPS ±' + titik.akurasi + ' m ' + (kurang ? '— <b style="color:var(--merah)">kurang teliti</b> (batas ' + batas + ' m). Pindah ke tempat terbuka lalu ambil lagi.' +
-          '<br><small>Di laptop/PC lokasi hanya perkiraan dari Wi-Fi. Rekam dari HP dengan GPS menyala.</small>' : '✓') : titik.sumber === 'Google Maps' ? 'Titik dari Google Maps ✓' : 'Titik dipilih di peta ✓';
+          '<br><small>Di laptop/PC lokasi hanya perkiraan dari Wi-Fi. Rekam dari HP dengan GPS menyala.</small>' : '✓') : titik.sumber === 'Google Maps' ? 'Titik dari Google Maps ✓' : 'Titik dipilih di maps ✓';
         $('#lkSimpan', bg).disabled = !titik || kurang;
       };
       peta = buatPeta($('#lkPeta', bg), {
@@ -3647,7 +3647,7 @@ function bukaSasaranLokasi(l) {
 function tabPeta(el) {
   var d = S.d, owner = S.me.peran === 'OWNER', lok = d.lokasi || [];
   var hit = function (f) { return lok.filter(f).length; };
-  el.innerHTML = '<h2>Peta lokasi</h2><p class="muted">' + (owner ? 'Kantor CV/PT (K) dan lokasi proyek (P). Kuning = belum dicek, hijau = dicek petugas, merah = tidak cocok. Ketuk titik untuk rincian atau mengecek.' :
+  el.innerHTML = '<h2>Maps lokasi</h2><p class="muted">' + (owner ? 'Kantor CV/PT (K) dan lokasi proyek (P). Kuning = belum dicek, hijau = dicek petugas, merah = tidak cocok. Ketuk titik untuk rincian atau mengecek.' :
     'Lokasi proyek konstruksi yang sudah direkam. Ketuk titik untuk rincian proyek.') + '</p>' + (owner ? '<div class="filters" id="fPeta"></div>' : '') + '<div id="petaSemua" class="besar"></div><div id="lPeta" style="margin-top:12px"></div>';
   var peta = buatPeta($('#petaSemua'), {});
   var gambar = function () {
@@ -3787,10 +3787,10 @@ function formDendaLaluCv(c) {
 function kartuUnggahJakon() {
   var lap = (S.d.infoProyek && S.d.infoProyek.laporan) || [];
   return '<div class="kartu" id="kJakon"><b>Laporan Proyek Jakon Aktif</b><p class="muted">Unduh dari sistem laporan "Proyek Jakon Aktif" (semua pembina), lalu unggah di sini (.xls, .xlsx, atau .csv). ' +
-    'Laporan semua pembina menggantikan seluruh daftar; laporan satu pembina hanya menggantikan proyek pembina itu. Salinannya disimpan juga di Gudang Laporan KC (LENSA PK).</p>' +
+    'Laporan semua pembina menggantikan seluruh daftar; laporan satu pembina hanya menggantikan proyek pembina itu. Salinannya diambil LENSA PK ke Gudang Laporan KC otomatis tiap jam (kolom Gudang: Menunggu → Tersimpan; bisa dipercepat dari Pusat Kendali LENSA › Ambil sekarang dari SIGAP).</p>' +
     '<div class="baris"><input type="file" id="jFile" accept=".xls,.xlsx,.csv,.html,.htm" style="flex:1"><button class="btn utama" id="jUnggah">Unggah laporan</button></div><div id="jHasil" class="muted" style="margin-top:8px"></div>' +
     (lap.length ? '<div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Diunggah</th><th>Berkas</th><th>Data per</th><th>Pembina</th><th class="num">Proyek</th><th>Hasil</th><th>Gudang</th></tr></thead><tbody>' +
-      lap.map(function (x) { return '<tr><td>' + esc(x.waktu) + '<br><span class="muted">' + esc(x.asal) + '</span></td><td>' + esc(x.file) + '</td><td>' + esc(tglPendek(x.tanggal)) + '</td><td>' + esc(x.pembina === 'SEMUA' ? 'Semua' : x.pembina) + '</td><td class="num">' + x.baris + '</td><td class="muted">' + esc(x.hasil) + '</td><td>' + chip(/^Tersimpan/.test(x.gudang) ? 'Tersimpan' : x.gudang) + '</td></tr>'; }).join('') +
+      lap.map(function (x) { return '<tr><td>' + esc(x.waktu) + '<br><span class="muted">' + esc(x.asal) + '</span></td><td>' + esc(x.file) + '</td><td>' + esc(tglPendek(x.tanggal)) + '</td><td>' + esc(x.pembina === 'SEMUA' ? 'Semua' : x.pembina) + '</td><td class="num">' + x.baris + '</td><td class="muted">' + esc(x.hasil) + '</td><td>' + chip(/^Tersimpan/.test(x.gudang) ? 'Tersimpan' : x.gudang) + (/^Tersimpan G/.test(x.gudang) ? '<br><span class="muted">' + esc(x.gudang.replace(/^Tersimpan\s*/, '')) + '</span>' : x.gudang === 'Menunggu' ? '<br><span class="muted">diambil LENSA ±1 jam</span>' : '') + '</td></tr>'; }).join('') +
       '</tbody></table></div>' : '') + '</div>';
 }
 function pasangUnggahJakon(el) {
@@ -4091,7 +4091,7 @@ function tabPanas(el) {
   var w = wadahPanas(basis, f), def = daftarUkur.filter(function (u) { return u[0] === ukur; })[0], ramp = def[2] === 'r' ? PANAS_MERAH : PANAS_BIRU;
   var maks = 0; KitPeta.kec.forEach(function (k) { var s = w.kec[k.nama]; if (s && s[ukur] > maks) maks = s[ukur]; });
   var per = perTanggalPj();
-  el.innerHTML = '<h2>Peta panas jasa konstruksi</h2><p class="muted" style="margin-top:-6px">' + (proyekJakon().length ? 'Proyek Jakon aktif dari laporan per ' + esc(tglPendek(per)) + '.' : 'Belum ada laporan Proyek Jakon Aktif.') +
+  el.innerHTML = '<h2>Heat maps jasa konstruksi</h2><p class="muted" style="margin-top:-6px">' + (proyekJakon().length ? 'Proyek Jakon aktif dari laporan per ' + esc(tglPendek(per)) + '.' : 'Belum ada laporan Proyek Jakon Aktif.') +
     (pengamat ? ' Angka jumlah saja (tanpa nominal).' : '') + ' Ketuk kecamatan untuk melihat daftarnya.</p>' +
     (pengamat ? '' : '<div class="seg" id="pnBasis" style="margin-bottom:8px"><button data-b="cv">Lokasi perusahaan</button><button data-b="proyek">Lokasi proyek</button></div>') +
     '<div class="filters" id="pnUkur"></div>' +
@@ -4115,7 +4115,7 @@ function tabPanas(el) {
   };
   var luarKeys = Object.keys(w.luar).sort(function (a, b) { return w.luar[b].n - w.luar[a].n; });
   $('#pnUrut', el).innerHTML = urut.map(function (x) { return baris(x.nama, x.s); }).join('') +
-    '<div class="muted" style="margin:10px 0 4px">Di luar peta</div>' + luarKeys.map(function (k) { return baris(k, w.luar[k], true, k === 'Luar Pamekasan' ? '' : '(luar Pamekasan)'); }).join('') + baris('Belum diketahui', w.belum, true, basis === 'cv' ? '(alamat belum terbaca)' : '(perlu desa / pilihan petugas)');
+    '<div class="muted" style="margin:10px 0 4px">Di luar maps</div>' + luarKeys.map(function (k) { return baris(k, w.luar[k], true, k === 'Luar Pamekasan' ? '' : '(luar Pamekasan)'); }).join('') + baris('Belum diketahui', w.belum, true, basis === 'cv' ? '(alamat belum terbaca)' : '(perlu desa / pilihan petugas)');
   var buka = function (nama, luar) {
     var s = luar ? (nama === 'Belum diketahui' ? w.belum : w.luar[nama]) : w.kec[nama];
     if (!adaIsi(s)) return;
@@ -4133,7 +4133,7 @@ function svgPanas(w, ukur, maks, ramp) {
     var fg = c ? c.fg : '#8A93A3', halo = fg === '#fff' ? 'rgba(0,0,0,.35)' : 'rgba(255,255,255,.75)';
     t += '<text x="' + k.lx + '" y="' + (k.ly - 1) + '" class="panas-lbl" fill="' + fg + '" stroke="' + halo + '">' + esc(k.nama) + '</text>' + (v ? '<text x="' + k.lx + '" y="' + (k.ly + 10) + '" class="panas-lbl angka" fill="' + fg + '" stroke="' + halo + '">' + teksUkur(ukur, v) + '</text>' : '');
   });
-  return '<svg viewBox="-3 -3 ' + (KitPeta.lebar + 6) + ' ' + (KitPeta.tinggi + 6) + '" class="panas-peta" role="img" aria-label="Peta 13 kecamatan Kabupaten Pamekasan">' + g + t + '</svg>';
+  return '<svg viewBox="-3 -3 ' + (KitPeta.lebar + 6) + ' ' + (KitPeta.tinggi + 6) + '" class="panas-peta" role="img" aria-label="Heat maps 13 kecamatan Kabupaten Pamekasan">' + g + t + '</svg>';
 }
 function legendaPanasSigap(ramp, maks, ukur, jenis) {
   return '<div class="panas-skala"><span>sedikit</span>' + ramp.map(function (c) { return '<i style="background:' + c + '"></i>'; }).join('') + '<span>' + (maks ? 'banyak (' + teksUkur(ukur, maks) + ')' : 'banyak') + '</span></div>' +
