@@ -133,6 +133,25 @@ select.st-baris{width:auto;min-width:150px;padding:5px 8px;font-size:13px}
 details.tempel{margin-top:10px;border:1px dashed var(--garis);border-radius:var(--r);padding:8px 10px}
 details.tempel summary{cursor:pointer;font-weight:600;color:var(--biru)}
 details.tempel .baris{margin-top:6px;gap:6px}details.tempel input{flex:1;min-width:0}
+/* 2.3.0 (Tahap 7): peta panas kecamatan (bentuk KitPeta) — biru = banyak-sedikit, terakota → merah = perlu perhatian */
+.panas-grid{display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);gap:18px;align-items:start;margin-bottom:6px}
+@media(max-width:820px){.panas-grid{grid-template-columns:1fr}}
+svg.panas-peta{width:100%;height:auto;display:block}
+.panas-wil{stroke:#fff;stroke-width:1.4;stroke-linejoin:round;cursor:pointer}.panas-wil:hover{stroke:#1C1917;stroke-width:1.8}
+.panas-lbl{font-size:9.5px;font-weight:600;text-anchor:middle;stroke-width:2.2px;paint-order:stroke;stroke-linejoin:round;pointer-events:none}
+.panas-lbl.angka{font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.panas-skala{display:flex;align-items:center;gap:2px;flex-wrap:wrap;font-size:11.5px;color:var(--abu);margin:8px 0 2px}.panas-skala i{display:inline-block;width:22px;height:12px;border-radius:2px}.panas-skala span{margin:0 6px}
+.panas-urut{display:grid;grid-template-columns:minmax(110px,1.3fr) 1fr 64px;gap:8px;align-items:center;font-size:13px;padding:6px 4px;border-bottom:1px solid var(--garis)}
+.panas-urut.klik{cursor:pointer}.panas-urut.klik:hover{background:#FFF7ED}.panas-urut b{text-align:right;font-variant-numeric:tabular-nums}
+.panas-urut .batang{height:8px;background:#F5F5F4;border-radius:4px;overflow:hidden}.panas-urut .batang i{display:block;height:8px}
+table.panas-tabel{border-collapse:separate;border-spacing:2px;font-size:12.5px}
+.panas-tabel th{background:#fff;white-space:nowrap;text-align:center;font-size:11.5px}
+.panas-tabel th.panas-kec{writing-mode:vertical-rl;transform:rotate(180deg);height:92px;vertical-align:bottom;padding:4px 2px}
+.panas-tabel th.panas-jenis,.panas-tabel th.panas-sudut{text-align:left;position:sticky;left:0;z-index:1;min-width:140px;color:var(--teks);font-size:12.5px}
+.panas-tabel td.panas-sel{min-width:40px;height:28px;text-align:center;border-radius:4px;font-weight:600;font-variant-numeric:tabular-nums;border:0;padding:4px}
+.panas-tabel td.kosong-sel{color:#D6D3D1;font-weight:400}.panas-tabel td.panas-sel.jml{border:1px solid var(--garis)}
+.panas-tabel tr.panas-jml th,.panas-tabel tr.panas-jml td{border-top:2px solid var(--garis)}
+.seg button.on{background:#FFF7ED;border-color:var(--hijau);color:var(--hijau)}
 </style>
 </head>
 <body>
@@ -185,13 +204,1685 @@ var KitSandi = (function () {
   return { ULANG: ULANG, pinSah: pinSah, garamBaru: garamBaru, kunciDariPin: kunciDariPin, sandikan: sandikan, bukaSandi: bukaSandi, keTeks: keTeks, keB64: keB64, dariB64: dariB64 };
 })();
 
+/* === kit:xls === */
+/* =====================================================================
+ *  KitXls — pembaca file .xls untuk LENSA Suite (3C.1). ES5, tanpa pustaka luar, jalan di browser dan Node (uji).
+ *  File dibaca di perangkat saja; yang dikirim ke spreadsheet/Gudang tetap hanya laporan ringkas (bukan filenya).
+ *
+ *  Unduhan ".xls" dari sistem bisa berupa salah satu dari:
+ *   1. Excel 97–2003 biner (BIFF8; juga BIFF5) di dalam wadah OLE2  → dibaca langsung
+ *   2. Tabel HTML yang diberi nama .xls                            → dibaca (colspan/rowspan dijaga posisinya)
+ *   3. Excel 2003 XML (SpreadsheetML)                              → dibaca
+ *   4. Teks biasa (CSV/TSV) bernama .xls                           → { teks } untuk pengurai CSV yang sudah ada
+ *  Hasil: { jenis, grid } — grid sama bentuknya dengan pembaca .xlsx (sel teks; angka rapi; tanggal dd-mm-yyyy).
+ *  Sel gabungan: nilai hanya di sel kiri-atas (sama seperti .xlsx/CSV), sehingga posisi kolom sama.
+ * ===================================================================== */
+var KitXls = (function () {
+  var TGL_BAWAAN = { 14: 1, 15: 1, 16: 1, 17: 1, 22: 1, 27: 1, 30: 1, 36: 1, 50: 1, 57: 1 };
+
+  function pad2(n) { return ('0' + n).slice(-2); }
+  function angkaRapi(n) {
+    if (!isFinite(n)) return String(n);
+    if (Math.abs(n - Math.round(n)) < 1e-9) return String(Math.round(n));
+    return String(Math.round(n * 1e6) / 1e6);
+  }
+  function tglSerial(v, d1904) {
+    var d = new Date(Date.UTC(d1904 ? 1904 : 1899, d1904 ? 0 : 11, d1904 ? 1 : 30) + Math.round(v) * 86400000);
+    return pad2(d.getUTCDate()) + '-' + pad2(d.getUTCMonth() + 1) + '-' + d.getUTCFullYear();
+  }
+  function formatTanggal(kode) {
+    var b = String(kode || '').toLowerCase().replace(/"[^"]*"|\[[^\]]*\]|\\./g, '');
+    return /[dy]/.test(b) || (/m/.test(b) && !/[hs]/.test(b) && /[\/\-\.]/.test(b));
+  }
+  function dekode(u8, cp) {
+    if (typeof TextDecoder !== 'undefined') {
+      var t = new TextDecoder(cp || 'utf-8').decode(u8);
+      if (!cp && t.indexOf('\uFFFD') >= 0) t = new TextDecoder('windows-1252').decode(u8);
+      return t;
+    }
+    var s = ''; for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return s;
+  }
+  function rapiGrid(grid) {
+    var out = [];
+    for (var r = 0; r < grid.length; r++) {
+      var b = grid[r] || [];
+      for (var c = 0; c < b.length; c++) if (b[c] === undefined || b[c] === null) b[c] = '';
+      while (b.length && b[b.length - 1] === '') b.pop();
+      out.push(b);
+    }
+    while (out.length && !out[out.length - 1].length) out.pop();
+    return out;
+  }
+
+  /* ---------------- wadah OLE2 (Compound File) ---------------- */
+  function bukaOle(u8) {
+    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    var u16 = function (o) { return dv.getUint16(o, true); }, u32 = function (o) { return dv.getUint32(o, true); };
+    var ss = 1 << u16(0x1E), mss = 1 << u16(0x20), cutoff = u32(0x38);
+    var ofs = function (n) { return (n + 1) * ss; };
+    var fatSek = [], i, n;
+    for (i = 0; i < 109; i++) { n = u32(0x4C + i * 4); if (n < 0xFFFFFFFA) fatSek.push(n); }
+    var difat = u32(0x44), nDifat = u32(0x48), per = ss / 4 - 1;
+    for (var d = 0; d < nDifat && difat < 0xFFFFFFFA; d++) {
+      for (i = 0; i < per; i++) { n = u32(ofs(difat) + i * 4); if (n < 0xFFFFFFFA) fatSek.push(n); }
+      difat = u32(ofs(difat) + per * 4);
+    }
+    var fat = [];
+    fatSek.forEach(function (s) { for (var j = 0; j < ss / 4; j++) fat.push(u32(ofs(s) + j * 4)); });
+    function rantai(awal, tabel) { var out = [], x = awal, jaga = 0; while (x < 0xFFFFFFFA && jaga++ < 1e7) { out.push(x); x = tabel[x]; } return out; }
+    function bacaBesar(awal, ukuran) {
+      var out = new Uint8Array(ukuran), p = 0;
+      rantai(awal, fat).forEach(function (s) { var o = ofs(s), k = Math.min(ss, ukuran - p); if (k > 0) { out.set(u8.subarray(o, o + k), p); p += k; } });
+      return out;
+    }
+    var dir = [], dirData = bacaBesar(u32(0x30), rantai(u32(0x30), fat).length * ss);
+    var dd = new DataView(dirData.buffer);
+    for (var e = 0; e + 128 <= dirData.length; e += 128) {
+      var pj = dd.getUint16(e + 0x40, true), nama = '';
+      for (var c = 0; c + 2 < pj; c += 2) nama += String.fromCharCode(dd.getUint16(e + c, true));
+      dir.push({ nama: nama, tipe: dirData[e + 0x42], awal: dd.getUint32(e + 0x74, true), ukuran: dd.getUint32(e + 0x78, true) });
+    }
+    var akar = dir.filter(function (x) { return x.tipe === 5; })[0], mini = null, minifat = null;
+    function bacaMini(awal, ukuran) {
+      if (!mini) {
+        mini = bacaBesar(akar.awal, akar.ukuran);
+        minifat = []; var mfAwal = u32(0x3C);
+        if (mfAwal < 0xFFFFFFFA) rantai(mfAwal, fat).forEach(function (s) { for (var j = 0; j < ss / 4; j++) minifat.push(u32(ofs(s) + j * 4)); });
+      }
+      var out = new Uint8Array(ukuran), p = 0;
+      rantai(awal, minifat).forEach(function (s) { var o = s * mss, k = Math.min(mss, ukuran - p); if (k > 0) { out.set(mini.subarray(o, o + k), p); p += k; } });
+      return out;
+    }
+    return {
+      aliran: function (nama) {
+        var x = dir.filter(function (y) { return y.tipe === 2 && y.nama.toLowerCase() === nama.toLowerCase(); })[0];
+        if (!x) return null;
+        return x.ukuran < cutoff ? bacaMini(x.awal, x.ukuran) : bacaBesar(x.awal, x.ukuran);
+      }
+    };
+  }
+
+  /* ---------------- BIFF8 / BIFF5 ---------------- */
+  function rk(v) {
+    var n;
+    if (v & 2) n = v >> 2;
+    else { var b = new DataView(new ArrayBuffer(8)); b.setUint32(4, v & 0xFFFFFFFC, true); b.setUint32(0, 0, true); n = b.getFloat64(0, true); }
+    return v & 1 ? n / 100 : n;
+  }
+  function bacaBiff(u8) {
+    var ole = bukaOle(u8), wb = ole.aliran('Workbook') || ole.aliran('Book');
+    if (!wb) throw new Error('File .xls ini tidak berisi buku kerja Excel.');
+    var dv = new DataView(wb.buffer, wb.byteOffset, wb.byteLength);
+    var u16 = function (o) { return dv.getUint16(o, true); }, u32 = function (o) { return dv.getUint32(o, true); };
+    var rek = [], p = 0;
+    while (p + 4 <= wb.length) { var t = u16(p), l = u16(p + 2); rek.push({ t: t, o: p + 4, l: l, awal: p }); p += 4 + l; }
+    var biff8 = true, cp = 'windows-1252', d1904 = false, xf = [], fmt = {}, sst = [], lembar = [];
+    function teks8(o, cch) { return dekode(wb.subarray(o, o + cch), biff8 ? 'iso-8859-1' : (cp === 'utf-16le' ? 'windows-1252' : cp)); }
+    function teks16(o, cch) { var s = ''; for (var i = 0; i < cch; i++) s += String.fromCharCode(u16(o + i * 2)); return s; }
+    // XLUnicodeString (cch 16 bit) di BIFF8; BIFF5: cch 16 bit + 8-bit
+    function strU(o, cchByte) {
+      var cch = cchByte ? wb[o] : u16(o), q = o + (cchByte ? 1 : 2);
+      if (!biff8) return teks8(q, cch);
+      var fl = wb[q]; q++;
+      return fl & 1 ? teks16(q, cch) : teks8(q, cch);
+    }
+    // SST dengan CONTINUE
+    function bacaSst(i0) {
+      var bagian = [rek[i0]], j = i0 + 1;
+      while (j < rek.length && rek[j].t === 0x003C) { bagian.push(rek[j]); j++; }
+      var bi = 0, o = bagian[0].o + 8, akhir = bagian[0].o + bagian[0].l, unik = u32(bagian[0].o + 4), out = [];
+      function pastikan() { if (o >= akhir && bi + 1 < bagian.length) { bi++; o = bagian[bi].o; akhir = o + bagian[bi].l; } }
+      function lewati(k) { while (k > 0) { pastikan(); var a = Math.min(k, akhir - o); o += a; k -= a; } }
+      for (var s = 0; s < unik; s++) {
+        pastikan();
+        if (o >= akhir) break;
+        var cch = u16(o); o += 2; pastikan();
+        var fl = wb[o]; o++;
+        var nRun = 0, nExt = 0;
+        if (fl & 8) { pastikan(); nRun = u16(o); o += 2; }
+        if (fl & 4) { pastikan(); nExt = u32(o); o += 4; }
+        var str = '', sisa = cch, lebar = fl & 1 ? 2 : 1;
+        while (sisa > 0) {
+          if (o >= akhir) { bi++; if (bi >= bagian.length) break; o = bagian[bi].o; akhir = o + bagian[bi].l; lebar = wb[o] & 1 ? 2 : 1; o++; }
+          var muat = Math.min(sisa, Math.floor((akhir - o) / lebar));
+          str += lebar === 2 ? teks16(o, muat) : teks8(o, muat);
+          o += muat * lebar; sisa -= muat;
+        }
+        lewati(nRun * 4 + nExt);
+        out.push(str);
+      }
+      return out;
+    }
+    var i, r;
+    for (i = 0; i < rek.length; i++) {
+      r = rek[i];
+      if (r.t === 0x0809 && i === 0) biff8 = u16(r.o) === 0x0600;
+      else if (r.t === 0x002F) throw new Error('File .xls ini dikunci sandi. Buka di Excel/WPS, lepas sandinya, lalu simpan ulang.');
+      else if (r.t === 0x0042) { var c = u16(r.o); cp = c === 1200 ? 'utf-16le' : c === 65001 ? 'utf-8' : 'windows-1252'; }
+      else if (r.t === 0x0022) d1904 = u16(r.o) === 1;
+      else if (r.t === 0x00E0) xf.push(u16(r.o + 2));
+      else if (r.t === 0x041E) fmt[u16(r.o)] = biff8 ? strU(r.o + 2) : strU(r.o + 2, true);
+      else if (r.t === 0x00FC) sst = bacaSst(i);
+      else if (r.t === 0x0085) {
+        var nm = biff8 ? (function () { var cch = wb[r.o + 6], fl = wb[r.o + 7]; return fl & 1 ? teks16(r.o + 8, cch) : teks8(r.o + 8, cch); })() : teks8(r.o + 7, wb[r.o + 6]);
+        lembar.push({ nama: nm, pos: u32(r.o), jenis: wb[r.o + 5] });
+      } else if (r.t === 0x000A) break; // akhir globals
+    }
+    var tglXf = xf.map(function (f) { return !!(TGL_BAWAAN[f] || (fmt[f] !== undefined && formatTanggal(fmt[f]))); });
+    function nilaiAngka(v, ixfe) { return tglXf[ixfe] && v > 1000 && v < 80000 ? tglSerial(v, d1904) : angkaRapi(v); }
+    var idx = {}; rek.forEach(function (x, k) { idx[x.awal] = k; });
+    var hasil = [];
+    lembar.filter(function (l) { return l.jenis === 0; }).forEach(function (l) {
+      var k = idx[l.pos], grid = [], tunggu = null;
+      if (k === undefined) return;
+      function taruh(row, col, v) { if (!grid[row]) grid[row] = []; grid[row][col] = String(v).trim(); }
+      for (var j = k + 1; j < rek.length; j++) {
+        var x = rek[j], o = x.o;
+        if (x.t === 0x000A) break;
+        if (x.t === 0x00FD) taruh(u16(o), u16(o + 2), sst[u32(o + 6)] || '');
+        else if (x.t === 0x0204 || x.t === 0x00D6) taruh(u16(o), u16(o + 2), strU(o + 6));
+        else if (x.t === 0x0203) taruh(u16(o), u16(o + 2), nilaiAngka(dv.getFloat64(o + 6, true), u16(o + 4)));
+        else if (x.t === 0x027E) taruh(u16(o), u16(o + 2), nilaiAngka(rk(u32(o + 6)), u16(o + 4)));
+        else if (x.t === 0x00BD) {
+          var baris = u16(o), c0 = u16(o + 2), nr = (x.l - 6) / 6;
+          for (var q = 0; q < nr; q++) taruh(baris, c0 + q, nilaiAngka(rk(u32(o + 4 + q * 6 + 2)), u16(o + 4 + q * 6)));
+        } else if (x.t === 0x0205) { if (!wb[o + 7]) taruh(u16(o), u16(o + 2), wb[o + 6] ? 'TRUE' : 'FALSE'); }
+        else if (x.t === 0x0006) {
+          if (u16(o + 12) === 0xFFFF) {
+            var ty = wb[o + 6];
+            if (ty === 0) tunggu = { r: u16(o), c: u16(o + 2) };
+            else if (ty === 1) taruh(u16(o), u16(o + 2), wb[o + 8] ? 'TRUE' : 'FALSE');
+          } else taruh(u16(o), u16(o + 2), nilaiAngka(dv.getFloat64(o + 6, true), u16(o + 4)));
+        } else if (x.t === 0x0207 && tunggu) { taruh(tunggu.r, tunggu.c, strU(o)); tunggu = null; }
+      }
+      hasil.push({ nama: l.nama, grid: rapiGrid(grid) });
+    });
+    return hasil;
+  }
+
+  /* ---------------- HTML ---------------- */
+  function entitas(s) {
+    return String(s).replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+      .replace(/&#x([0-9a-f]+);/gi, function (m, h) { return String.fromCharCode(parseInt(h, 16)); }).replace(/&#(\d+);/g, function (m, d) { return String.fromCharCode(+d); });
+  }
+  function atr(s, nama) { var m = String(s).match(new RegExp('\\b' + nama + '\\s*=\\s*("([^"]*)"|\'([^\']*)\'|([^\\s>]+))', 'i')); return m ? (m[2] !== undefined ? m[2] : m[3] !== undefined ? m[3] : m[4]) : ''; }
+  function tabelKeGrid(isiTabel) {
+    var grid = [], rr = /<tr\b[^>]*>([\s\S]*?)(?=<tr\b|$)/gi, tr, row = 0;
+    while ((tr = rr.exec(isiTabel))) {
+      var rc = /<t([dh])\b([^>]*)>([\s\S]*?)(?=<t[dh]\b|<\/tr>|$)/gi, td, col = 0;
+      if (!grid[row]) grid[row] = [];
+      while ((td = rc.exec(tr[1]))) {
+        while (grid[row][col] !== undefined) col++;
+        var cs = Math.max(1, +atr(td[2], 'colspan') || 1), rs = Math.max(1, +atr(td[2], 'rowspan') || 1);
+        var v = entitas(td[3].replace(/<\/t[dh]>[\s\S]*$/i, '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
+        for (var a = 0; a < rs; a++) for (var b = 0; b < cs; b++) {
+          if (!grid[row + a]) grid[row + a] = [];
+          grid[row + a][col + b] = a === 0 && b === 0 ? v : '';
+        }
+        col += cs;
+      }
+      row++;
+    }
+    return grid;
+  }
+  /** Halaman web bernama .xls: tabel-tabel ditumpuk berurutan seperti dibuka Excel; teks di luar tabel (judul, "Pembina : …") jadi baris sendiri. */
+  function bacaHtml(teks) {
+    var badan = (teks.match(/<body\b[^>]*>([\s\S]*?)(<\/body>|$)/i) || [0, teks])[1]
+      .replace(/<\!--[\s\S]*?-->/g, '').replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, '');
+    var grid = [], ada = false, rt = /<table\b[^>]*>([\s\S]*?)<\/table>/gi, t, akhir = 0;
+    function teksLuar(s) {
+      entitas(s.replace(/<br\s*\/?>|<\/(p|div|h\d|li)>/gi, '\n').replace(/<[^>]+>/g, '')).split('\n').forEach(function (l) {
+        l = l.replace(/\s+/g, ' ').trim(); if (l) grid.push([l]);
+      });
+    }
+    while ((t = rt.exec(badan))) {
+      teksLuar(badan.slice(akhir, t.index));
+      tabelKeGrid(t[1]).forEach(function (r) { grid.push(r); });
+      akhir = t.index + t[0].length; ada = true;
+    }
+    if (!ada) throw new Error('File .xls ini berisi halaman web tanpa tabel.');
+    teksLuar(badan.slice(akhir));
+    return [{ nama: 'Halaman', grid: rapiGrid(grid) }];
+  }
+
+  /* ---------------- Excel 2003 XML (SpreadsheetML) ---------------- */
+  function bacaXml(teks) {
+    var hasil = [], rw = /<(?:ss:)?Worksheet\b([^>]*)>([\s\S]*?)<\/(?:ss:)?Worksheet>/gi, w;
+    while ((w = rw.exec(teks))) {
+      var grid = [], rr = /<(?:ss:)?Row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:ss:)?Row>)/gi, r, row = -1;
+      while ((r = rr.exec(w[2]))) {
+        var ri = +atr(r[1], 'ss:Index'); row = ri ? ri - 1 : row + 1;
+        if (!grid[row]) grid[row] = [];
+        var rc = /<(?:ss:)?Cell\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:ss:)?Cell>)/gi, c, col = -1;
+        while ((c = rc.exec(r[2] || ''))) {
+          var ci = +atr(c[1], 'ss:Index'); col = ci ? ci - 1 : col + 1;
+          while (grid[row][col] !== undefined && !ci) col++;
+          var dm = (c[2] || '').match(/<(?:ss:)?Data\b([^>]*)>([\s\S]*?)<\/(?:ss:)?Data>/i), v = '';
+          if (dm) {
+            var tipe = atr(dm[1], 'ss:Type'), raw = entitas(dm[2].replace(/<[^>]+>/g, ''));
+            if (tipe === 'Number') v = angkaRapi(Number(raw));
+            else if (tipe === 'DateTime') { var m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/); v = m ? m[3] + '-' + m[2] + '-' + m[1] : raw; }
+            else if (tipe === 'Boolean') v = raw === '1' ? 'TRUE' : 'FALSE';
+            else v = raw;
+          }
+          var ma = +atr(c[1], 'ss:MergeAcross') || 0, md = +atr(c[1], 'ss:MergeDown') || 0;
+          for (var a = 0; a <= md; a++) for (var b = 0; b <= ma; b++) {
+            if (!grid[row + a]) grid[row + a] = [];
+            if (grid[row + a][col + b] === undefined) grid[row + a][col + b] = a === 0 && b === 0 ? String(v).trim() : '';
+          }
+          col += ma;
+        }
+      }
+      hasil.push({ nama: atr(w[1], 'ss:Name') || 'Sheet' + (hasil.length + 1), grid: rapiGrid(grid) });
+    }
+    if (!hasil.length) throw new Error('File .xls (XML) ini tidak berisi lembar kerja.');
+    return hasil;
+  }
+
+  /** Jenis isi file .xls dari bytenya. */
+  function jenis(u8) {
+    if (u8.length >= 8 && u8[0] === 0xD0 && u8[1] === 0xCF && u8[2] === 0x11 && u8[3] === 0xE0) return 'biff';
+    var awal = dekode(u8.subarray(0, Math.min(u8.length, 8192))).replace(/^\uFEFF/, '').toLowerCase();
+    if (/urn:schemas-microsoft-com:office:spreadsheet/.test(awal) && /<(ss:)?workbook\b/.test(awal)) return 'xml';
+    if (/<html\b|<table\b|<!doctype html|<meta\b|<body\b/.test(awal)) return 'html';
+    if (u8.length >= 4 && u8[0] === 0x50 && u8[1] === 0x4B && u8[2] === 3 && u8[3] === 4) return 'xlsx';
+    return 'teks';
+  }
+  /**
+   * buf (ArrayBuffer/Uint8Array) → { jenis, grid, lembar } untuk biff/html/xml; { jenis:'xlsx' } (dibaca pembaca .xlsx);
+   * { jenis:'teks', teks } (diurai sebagai CSV). grid = lembar pertama yang berisi ≥ 2 baris (sama dengan pembaca .xlsx).
+   */
+  function baca(buf) {
+    var u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf), j = jenis(u8), daftar;
+    if (j === 'xlsx') return { jenis: j };
+    if (j === 'teks') return { jenis: j, teks: dekode(u8) };
+    try { daftar = j === 'biff' ? bacaBiff(u8) : j === 'xml' ? bacaXml(dekode(u8)) : bacaHtml(dekode(u8)); }
+    catch (e) {
+      if (/^File \.xls/.test(e.message)) throw e;
+      throw new Error('File .xls tidak bisa dibaca (rusak atau bentuknya tidak dikenal). Buka di Excel/WPS lalu Simpan Sebagai .xlsx atau CSV.');
+    }
+    var pilih = daftar.filter(function (l) { return l.grid.filter(function (r) { return r.some(function (x) { return x !== ''; }); }).length >= 2; })[0];
+    if (!pilih) throw new Error('Lembar Excel kosong.');
+    return { jenis: j, grid: pilih.grid, lembar: daftar.map(function (l) { return l.nama; }) };
+  }
+  return { baca: baca, jenis: jenis };
+})();
+
+/* === kit:impor === */
+/* =====================================================================
+ *  KitImpor — modul Impor bersama LENSA Suite (Tahap 2A).
+ *  Satu pengurai laporan sistem (ITW/ITB, Monitoring, Data Badan Usaha, KPI084, KPI085, Kartu Iuran,
+ *  Status PK LENSA, 3C: Daftar Iuran Belum Rinci / IBR; Tahap 7: Proyek Jakon Aktif untuk SIGAP Jakon)
+ *  untuk mesin LENSA (Apps Script & perangkat), Monitor SPPG, SIGAP Jakon, dan Hub.
+ *  ES5 murni, tanpa layanan Google: jalan di Apps Script dan di browser.
+ *  Laporan diurai sekali di perangkat yang mengunggah, lalu dikirim sebagai "laporan ringkas"
+ *  (hanya kolom yang dipakai) ke Gudang Laporan KC.
+ * ===================================================================== */
+var KitImpor = (function () {
+  'use strict';
+  var VERSI = '1.0';
+  var CFG = {
+    // jenis laporan yang dipakai aplikasi ini (urutan = urutan pengenal)
+    jenis: ['DATA_BU', 'MONITORING', 'ITW_ITB', 'KARTU_IURAN', 'KPI084', 'KPI085'],
+    tolak: {},                 // jenis yang dikenali tetapi ditolak aplikasi ini → pesan
+    saranPemetaan: false,      // pesan galat menyarankan tab PEMETAAN (LENSA)
+    tambahan: function () { return []; },  // baris tab PEMETAAN: { laporan, kolom_lensa, judul_di_laporan, wajib }
+    hariIni: function () { return tglLokal(new Date()); },
+    tglLokal: tglLokal
+  };
+  function tglLokal(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function pasang(o) { Object.keys(o || {}).forEach(function (k) { CFG[k] = o[k]; }); _PEMETAAN = null; }
+  function lupakan() { _PEMETAAN = null; }
+
+  var DEF_PEMETAAN = {
+    // 2A: Status PK unduhan LENSA (dibaca Monitor SPPG)
+    LENSA_STATUS: [['npp', 'npp', 'Ya'], ['div', 'div', ''], ['nama', 'nama', 'Ya'], ['segmen', 'segmen', ''], ['kontak_utama', 'kontak utama', 'Ya']],
+    DATA_BU: [
+      ['npp', 'npp', 'Ya'],
+      ['div', 'div|divisi', ''],
+      ['nama', 'nama pemberi kerja badan usaha|pemberi kerja badan usaha|nama badan usaha|nama perusahaan|nama pk|nama pemberi kerja', 'Ya'],
+      ['blth_keps', 'blth keps|keps awal|keps', ''],
+      ['blth_na', 'blth na', ''],
+      ['kategori', 'kategori pk bu|kategori', ''],
+      ['rate_jkk', 'rate jkk|rate', ''],
+      ['kode_ilo', 'kode ilo', ''],
+      ['nama_ilo', 'nama ilo', ''],
+      ['total_upah', 'total upah', 'Ya'],
+      ['blth_iuran', 'iuran trakhir blth|iuran terakhir blth|blth iuran|blth', ''],
+      ['jumlah_iuran', 'iuran trakhir jumlah|iuran terakhir jumlah|jumlah iuran|jumlah', ''],
+      ['alamat', 'alamat', 'Ya'],
+      ['kabupaten', 'kabupaten|kab kota|kota', ''],
+      ['kode_area', 'kode area', ''],
+      ['telp', 'no telp|telp|telepon|no telepon', ''],
+      ['pic_nama', 'data pic nama|nama pic|pic nama|nama', ''],
+      ['pic_jabatan', 'data pic jabatan|jabatan pic|pic jabatan|jabatan', ''],
+      ['pic_hp', 'data pic no hp|no hp|hp|handphone|no handphone', ''],
+      ['pic_email', 'data pic email|email|e mail', '']
+    ],
+    MONITORING: [
+      ['npp', 'npp', 'Ya'],
+      ['div', 'div|divisi', ''],
+      ['nama', 'pemberi kerja badan usaha|nama pemberi kerja badan usaha|nama badan usaha|nama perusahaan|nama pk|nama', 'Ya'],
+      ['keps_awal', 'keps awal|kepesertaan awal', ''],
+      ['keps_jp', 'keps jp|kepesertaan jp', ''],
+      ['blth_na', 'blth na|na blth', ''],
+      ['skala', 'skala usaha|skala', ''],
+      ['prog', 'prog|program', ''],
+      ['tk_tambah', 'penambahan|tk tambah|tk masuk', ''],
+      ['tk_kurang', 'pengurangan|tk kurang|tk keluar', ''],
+      ['tk_aktif', 'tk aktif|aktif', 'Ya'],
+      ['tk_na', 'tk na|tk nonaktif|tk non aktif', ''],
+      ['tk_jumlah', 'jumlah tk|tk jumlah|jumlah', ''],
+      ['iuran_berjalan', 'total iuran berjalan|iuran berjalan|total iuran', ''],
+      ['tgl_terima', 'tgl penerimaan iuran terakhir|tgl penerimaan iuran terkahir|tgl penerimaan|tanggal penerimaan|tgl terima|penerimaan', 'Ya'],
+      ['blth_entri', 'entri dutk blth|blth entri|entri dutk|blth#1', ''],
+      ['blth_posting', 'posting terakhir blth|blth posting|posting terakhir|blth#2', 'Ya'],
+      ['nilai_posting', 'nilai posting|posting terakhir nilai posting', ''],
+      ['sipp_prs', 'sipp prs|sipp', ''],
+      ['itw', 'itw', ''],
+      ['ibr_ijt', 'ijt|nilai ibr ijt|ibr ijt', ''],
+      ['ibr_idm', 'idm|nilai ibr idm|ibr idm', '']
+    ],
+    ITW_ITB: [
+      ['npp', 'npp', 'Ya'],
+      ['div', 'div|divisi', ''],
+      ['nama', 'nama pemberi kerja badan usaha|pemberi kerja badan usaha|nama badan usaha|nama perusahaan|nama pk|nama', 'Ya'],
+      ['pembina', 'pembina', ''],
+      ['blth_posting', 'itrf blth|blth itrf|blth posting|blth', 'Ya'],
+      ['iuran_terakhir', 'itrf nilai rp|itrf nilai|nilai itrf|iuran terakhir|nilai rp#1', 'Ya'],
+      ['periode_nilai', 'periode penilaian|periode', 'Ya'],
+      ['bln_belum_posting', 'jml bln blm posting|jumlah bulan belum posting|bln blm posting|blm posting|belum posting', 'Ya'],
+      ['ibr_nilai', 'kecukupan ibr nilai rp|ibr nilai rp|ibr nilai|nilai ibr|nilai rp#2', ''],
+      ['ibr_bulan', 'kecukupan ibr jml bulan|ibr jml bulan|jml bulan|jumlah bulan|ibr bulan', 'Ya'],
+      ['koef', 'koef|koefisien', 'Ya'],
+      ['itw', 'itw', 'Ya'],
+      ['itb', 'itb', 'Ya']
+    ],
+    KARTU_IURAN: [
+      ['npp', 'npp', ''],
+      ['blth_iuran', 'blth iuran|bulan iuran', 'Ya'],
+      ['tgl_bayar', 'tanggal bayar|tgl bayar|tanggal pembayaran', 'Ya'],
+      ['jht', 'jht', ''], ['jkk', 'jkk', ''], ['jkm', 'jkm', ''], ['jp', 'jp', ''], ['jkp', 'jkp', ''],
+      ['denda', 'denda', ''],
+      ['total_iuran', 'total iuran', 'Ya'],
+      ['total_upah', 'total upah tk|total upah', ''],
+      ['jumlah_tk', 'jumlah tk|jml tk', '']
+    ],
+    KPI084: [
+      ['bulan', 'bulan', 'Ya'],
+      ['pk_itw', 'pkbu itw', 'Ya'], ['pk_lancar', 'pkbu lancar', 'Ya'], ['pk_kurang_lancar', 'pkbu kurang lancar|pkbu kurang', 'Ya'],
+      ['pk_diragukan', 'pkbu diragukan', 'Ya'], ['pk_macet', 'pkbu macet', 'Ya'],
+      ['mig_itw', 'itw ke menunggak#1', 'Ya'], ['mig_lancar', 'lancar ke kurang lancar#1', 'Ya'],
+      ['mig_kurang_lancar', 'kurang lancar ke diragukan#1', 'Ya'], ['mig_diragukan', 'diragukan ke macet#1', 'Ya'],
+      ['cap_itw', 'itw ke menunggak#2', ''], ['cap_lancar', 'lancar ke kurang lancar#2', ''],
+      ['cap_kurang_lancar', 'kurang lancar ke diragukan#2', ''], ['cap_diragukan', 'diragukan ke macet#2', ''],
+      ['rata_itw', 'itw ke menunggak#3', ''], ['rata_lancar', 'lancar ke kurang lancar#3', ''],
+      ['rata_kurang_lancar', 'kurang lancar ke diragukan#3', ''], ['rata_diragukan', 'diragukan ke macet#3', ''],
+      ['bobot', 'bobot', ''], ['skor', 'skor', '']
+    ],
+    // 3C: Daftar Iuran Belum Rinci (per pembina, satu NPP bisa beberapa baris transaksi); disimpan Gudang untuk MyTagihan Desa
+    IBR: [
+      ['npp', 'npp', 'Ya'],
+      ['div', 'div|divisi', ''],
+      ['nama', 'nama pemberi kerja badan usaha|pemberi kerja badan usaha|nama badan usaha|nama perusahaan|nama', ''],
+      ['posting_terakhir', 'posting terakhir|posting', ''],
+      ['tgl_transaksi', 'tgl transaksi|tanggal transaksi', ''],
+      ['kode_transaksi', 'kode transaksi', ''],
+      ['ijt', 'ibr jatuh tempo ijt|ibr jatuh tempo|jatuh tempo|ijt', 'Ya'],
+      ['idm', 'ibr dibayar dimuka idm|ibr dibayar dimuka|dibayar dimuka|idm', '']
+    ],
+    // Tahap 7: Proyek Jakon Aktif (laporan per pembina / se-KC; judul kolom bergeser dari isinya → dipetakan menurut isi)
+    PROYEK_JAKON: [
+      ['no_proyek', 'no proyek|nomor proyek', 'Ya'],
+      ['kode_tender', 'kode tender|kode paket|kode rup', ''],
+      ['nama_proyek', 'nama proyek|nama paket', 'Ya'],
+      ['npp', 'npp', 'Ya'],
+      ['nama', 'nama pk bu|nama bu|nama', ''],
+      ['tgl_awal', 'tgl awal|tanggal awal', 'Ya'],
+      ['tgl_akhir', 'tgl akhir|tanggal akhir', 'Ya'],
+      ['nilai_proyek', 'nilai proyek|nilai kontrak', 'Ya'],
+      ['nilai_iuran', 'nilai iuran', 'Ya'],
+      ['tk_entri', 'entri', ''],
+      ['tk_bnba', 'bnba', ''],
+      ['tk_valid', 'valid bnba', ''],
+      ['kanal', 'kanal', ''],
+      ['sumber_dana', 'sumber dana', ''],
+      ['pemilik', 'nama pemilik|pemilik', ''],
+      ['kontak', 'no kontak|kontak', '']
+    ],
+    KPI085: [
+      ['npp', 'npp', 'Ya'],
+      ['pembina', 'nama pembina|pembina', 'Ya'],
+      ['nama', 'nama perusahan|nama perusahaan|nama pemberi kerja', ''],
+      ['kelas_lalu', 'piutang*#1', 'Ya'],
+      ['kelas_ini', 'piutang*#2', 'Ya'],
+      ['migrasi', 'migrasi', 'Ya']
+    ]
+  };
+
+  // Urutan kolom seperti cetakan laporan; dipakai bila judul kolom tidak terbaca tetapi jumlah kolom sama.
+  var URUTAN_KOLOM = {
+    ITW_ITB: ['no', 'kci', 'kcp', 'npp', 'div', 'nama', 'pembina', 'blth_posting', 'iuran_terakhir', 'periode_nilai', 'bln_belum_posting', 'ibr_nilai', 'ibr_bulan', 'koef', 'itw', 'itb'],
+    MONITORING: ['no', 'npp', 'div', 'nama', 'keps_awal', 'keps_jp', 'blth_na', 'skala', 'prog', 'tk_tambah', 'tk_kurang', 'tk_aktif', 'tk_na', 'tk_jumlah', 'iuran_berjalan', 'tgl_terima', 'blth_entri', 'blth_posting', 'nilai_posting', 'sipp_prs', 'itw', 'ibr_ijt', 'ibr_idm'],
+    DATA_BU: ['no', 'npp', 'div', 'nama', 'blth_keps', 'blth_na', 'kategori', 'rate_jkk', 'kode_ilo', 'nama_ilo', 'total_upah', 'blth_iuran', 'jumlah_iuran', 'alamat', 'kabupaten', 'kode_area', 'telp', 'pic_nama', 'pic_jabatan', 'pic_hp', 'pic_email'],
+    KARTU_IURAN: ['no', 'blth_iuran', 'tgl_bayar', 'jht', 'jkk', 'jkm', 'jp', 'jkp', 'denda', 'total_iuran', 'total_upah', 'jumlah_tk'],
+    KPI084: ['no', 'bulan', 'pk_itw', 'pk_lancar', 'pk_kurang_lancar', 'pk_diragukan', 'pk_macet', 'mig_itw', 'mig_lancar', 'mig_kurang_lancar', 'mig_diragukan',
+      'cap_itw', 'cap_lancar', 'cap_kurang_lancar', 'cap_diragukan', 'rata_itw', 'rata_lancar', 'rata_kurang_lancar', 'rata_diragukan', 'bobot', 'skor'],
+    KPI085: ['no', 'pembina', 'npp', 'nama', 'kelas_lalu', 'kelas_ini', 'migrasi'],
+    IBR: ['no', 'npp', 'div', 'nama', 'posting_terakhir', 'tgl_transaksi', 'kode_transaksi', 'ijt', 'idm'],
+    PROYEK_JAKON: ['no', 'no_proyek', 'kode_tender', 'nama_proyek', 'npp', 'nama', 'tgl_awal', 'tgl_akhir', 'nilai_proyek', 'nilai_iuran',
+      'tk_entri', 'tk_bnba', 'tk_valid', 'kanal', 'sumber_dana', 'pemilik', 'kontak']
+  };
+
+  var NAMA_LAPORAN = { DATA_BU: 'Data Badan Usaha', MONITORING: 'Monitoring', ITW_ITB: 'ITW/ITB', KARTU_IURAN: 'Kartu Iuran', KPI084: 'KPI084 Rekap Migrasi Piutang', KPI085: 'KPI085 Detil Migrasi Piutang', LENSA_STATUS: 'STATUS_PK (LENSA)', IBR: 'Daftar IBR (Iuran Belum Rinci)', PROYEK_JAKON: 'Proyek Jakon Aktif' };
+  var BULAN_SINGKAT = { jan: 1, feb: 2, mar: 3, apr: 4, mei: 5, may: 5, jun: 6, jul: 7, agu: 8, ags: 8, agt: 8, aug: 8, sep: 9, okt: 10, oct: 10, nov: 11, des: 12, dec: 12 };
+  var BULAN_KPI = /^(jan|feb|mar|apr|mei|may|jun|jul|agu|ags|agt|aug|sep|okt|oct|nov|des|dec)[a-z]*$/;
+  var TIPE_KOLOM = {
+    no: 'bulat', npp: 'npp', div: 'div', nama: 'teks', kci: 'kode', kcp: 'kode', pembina: 'pembina',
+    blth_keps: 'blth', blth_na: 'blth', kategori: 'teks', rate_jkk: 'desimal', kode_ilo: 'ilo', nama_ilo: 'teks',
+    total_upah: 'angka', blth_iuran: 'blth', jumlah_iuran: 'angka', alamat: 'teks', kabupaten: 'teks', kode_area: 'digit',
+    telp: 'digit', pic_nama: 'teks', pic_jabatan: 'teks', pic_hp: 'digit', pic_email: 'email',
+    blth_posting: 'blth', iuran_terakhir: 'angka', periode_nilai: 'blth', bln_belum_posting: 'bulat', ibr_nilai: 'angka',
+    ibr_bulan: 'bulat', koef: 'bulat', itw: 'yt', itb: 'yt',
+    keps_awal: 'blth', keps_jp: 'blth', skala: 'skala', prog: 'prog', tk_tambah: 'bulat', tk_kurang: 'bulat', tk_aktif: 'bulat',
+    tk_na: 'bulat', tk_jumlah: 'bulat', iuran_berjalan: 'angka', tgl_terima: 'tgl', blth_entri: 'blth', nilai_posting: 'angka',
+    sipp_prs: 'sipp', ibr_ijt: 'angka', ibr_idm: 'angka',
+    tgl_bayar: 'tgl', jht: 'angka', jkk: 'angka', jkm: 'angka', jp: 'angka', jkp: 'angka', denda: 'angka', total_iuran: 'angka',
+    jumlah_tk: 'bulat', kelas_lalu: 'kelas', kelas_ini: 'kelas', migrasi: 'yatidak',
+    posting_terakhir: 'blth', tgl_transaksi: 'tgl', kode_transaksi: 'kode', ijt: 'angka', idm: 'angka',
+    no_proyek: 'noproyek', kode_tender: 'kodetender', nama_proyek: 'teks', tgl_awal: 'tgl', tgl_akhir: 'tgl', nilai_proyek: 'angka', nilai_iuran: 'angka',
+    tk_entri: 'bulat', tk_bnba: 'bulat', tk_valid: 'bulat', kanal: 'kanal', sumber_dana: 'sumberdana', pemilik: 'teks', kontak: 'kontak'
+  };
+  var SERING_KOSONG = { blth_na: 1, kategori: 1, keps_jp: 1, prog: 1, jkp: 1, denda: 1 };
+
+  function pad2(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
+
+  function norm(s) {
+    return String(s === null || s === undefined ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  function judulKata(s) {
+    return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim()
+      .replace(/(^|[\s\-\.\(\/'])([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); });
+  }
+
+  function keAngka(v, desimal) {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number') return isFinite(v) ? v : null;
+    var s = String(v).trim().replace(/\s/g, '').replace(/^rp\.?/i, '');
+    if (!s || s === '-' || s === '--') return null;
+    var neg = false;
+    if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+    if (s.charAt(0) === '-') { neg = true; s = s.slice(1); }
+    var titik = s.indexOf('.') >= 0, koma = s.indexOf(',') >= 0;
+    if (titik && koma) {
+      if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+      else s = s.replace(/,/g, '');
+    } else if (koma) {
+      if (/^\d{1,3}(,\d{3})+$/.test(s) && !desimal) s = s.replace(/,/g, '');
+      else if (/^\d{1,3}(,\d{3}){2,}$/.test(s)) s = s.replace(/,/g, '');
+      else s = s.replace(',', '.');
+    } else if (titik) {
+      if (/^\d{1,3}(\.\d{3})+$/.test(s) && !desimal) s = s.replace(/\./g, '');
+      else if (/^\d{1,3}(\.\d{3}){2,}$/.test(s)) s = s.replace(/\./g, '');
+    }
+    if (!/^\d*\.?\d+$/.test(s)) return null;
+    var n = parseFloat(s);
+    return neg ? -n : n;
+  }
+
+  function tahun4(y) { y = String(y); return y.length === 2 ? (+y > 50 ? '19' : '20') + y : y; }
+
+  function ymd(y, m, d) {
+    y = +y; m = +m; d = +d;
+    if (!y || m < 1 || m > 12 || d < 1 || d > 31) return '';
+    return y + '-' + pad2(m) + '-' + pad2(d);
+  }
+
+  function keTanggal(v) {
+    if (v === null || v === undefined || v === '') return '';
+    if (v instanceof Date) return isNaN(v.getTime()) ? '' : CFG.tglLokal(v);
+    if (typeof v === 'number') {
+      if (v > 20000 && v < 80000) {
+        var d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000);
+        return ymd(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+      }
+      return '';
+    }
+    var s = String(v).trim().toLowerCase().replace(/[t\s]+\d{1,2}[:.]\d{2}([:.]\d{2})?.*$/, '');
+    var m;
+    if ((m = s.match(/^(\d{4})[\-\/\.](\d{1,2})[\-\/\.](\d{1,2})$/))) return ymd(m[1], m[2], m[3]);
+    if ((m = s.match(/^(\d{1,2})[\-\/\.](\d{1,2})[\-\/\.](\d{2}|\d{4})$/))) return ymd(tahun4(m[3]), m[2], m[1]);
+    if ((m = s.match(/^(\d{1,2})[\-\/\. ]([a-z]{3})[a-z]*[\-\/\. ](\d{2}|\d{4})$/))) {
+      var b = BULAN_SINGKAT[m[2]];
+      if (b) return ymd(tahun4(m[3]), b, m[1]);
+    }
+    return '';
+  }
+
+  function keBlth(v) {
+    if (v === null || v === undefined || v === '') return '';
+    if (v instanceof Date) return isNaN(v.getTime()) ? '' : CFG.tglLokal(v).slice(0, 7);
+    var s = String(v).trim().toLowerCase();
+    var m, bln;
+    if ((m = s.match(/^(\d{1,2})[\-\/\.](\d{4})$/))) bln = [m[2], m[1]];
+    else if ((m = s.match(/^(\d{4})[\-\/\.](\d{1,2})$/))) bln = [m[1], m[2]];
+    else if ((m = s.match(/^([a-z]{3})[a-z]*[\-\/\. ](\d{2}|\d{4})$/)) && BULAN_SINGKAT[m[1]]) bln = [tahun4(m[2]), BULAN_SINGKAT[m[1]]];
+    else if ((m = s.match(/^((?:19|20)\d{2})(0[1-9]|1[0-2])$/))) bln = [m[1], m[2]];
+    else if ((m = s.match(/^(0[1-9]|1[0-2])((?:19|20)\d{2})$/))) bln = [m[2], m[1]];
+    if (bln) {
+      var bb = +bln[1];
+      return (bb >= 1 && bb <= 12) ? bln[0] + '-' + pad2(bb) : '';
+    }
+    var t = keTanggal(v);
+    return t ? t.slice(0, 7) : '';
+  }
+
+  function keYT(v) {
+    var s = String(v === null || v === undefined ? '' : v).trim().toUpperCase();
+    if (/^(Y|YA|YES|TRUE|1)$/.test(s)) return 'Y';
+    if (/^(T|TIDAK|N|NO|FALSE|0)$/.test(s)) return 'T';
+    return '';
+  }
+
+  function rapikanNpp(v) {
+    var s = String(v === null || v === undefined ? '' : v).trim().toUpperCase().replace(/^'/, '').replace(/\s/g, '');
+    if (/^\d+\.0+$/.test(s)) s = s.replace(/\.0+$/, '');
+    if (/^\d{7}$/.test(s)) s = '0' + s;
+    return /^[A-Z]{2}\d{6}$|^\d{8}$/.test(s) ? s : '';
+  }
+
+  function rapikanDiv(v) {
+    var s = String(v === null || v === undefined ? '' : v).trim().replace(/^'/, '').replace(/\.0+$/, '');
+    if (!s) return '000';
+    return /^\d{1,3}$/.test(s) ? ('000' + s).slice(-3) : s;
+  }
+
+  function rusakExcel(v) { return /^\s*\d+(\.\d+)?e\+?\d+\s*$/i.test(String(v === null || v === undefined ? '' : v)); }
+
+  function kelasDariTeks(s) {
+    var n = norm(s);
+    if (!n) return '';
+    if (n === 'itw') return 'itw';
+    if (n.indexOf('kurang') === 0) return 'kurang_lancar';
+    if (n.indexOf('lancar') === 0) return 'lancar';
+    if (n.indexOf('ragu') >= 0) return 'diragukan';
+    if (n.indexOf('macet') >= 0) return 'macet';
+    return '';
+  }
+
+  function uraiCsv(teks, pemisah) {
+    teks = String(teks || '').replace(/^\uFEFF/, '');
+    var baris = [], sel = '', row = [], kutip = false, i = 0, n = teks.length;
+    while (i < n) {
+      var ch = teks.charAt(i);
+      if (kutip) {
+        if (ch === '"') {
+          if (teks.charAt(i + 1) === '"') { sel += '"'; i += 2; continue; }
+          kutip = false; i++; continue;
+        }
+        sel += ch; i++; continue;
+      }
+      if (ch === '"' && sel === '') { kutip = true; i++; continue; }
+      if (ch === pemisah) { row.push(sel); sel = ''; i++; continue; }
+      if (ch === '\r') { i++; continue; }
+      if (ch === '\n') { row.push(sel); baris.push(row); row = []; sel = ''; i++; continue; }
+      sel += ch; i++;
+    }
+    if (sel !== '' || row.length) { row.push(sel); baris.push(row); }
+    return baris.map(function (r) { return r.map(function (x) { return String(x).trim(); }); });
+  }
+
+  function deteksiPemisah(teks) {
+    var contoh = String(teks || '').split(/\r?\n/).slice(0, 60).join('\n');
+    var terbaik = ',', skor = -1;
+    [',', ';', '\t', '|'].forEach(function (p) {
+      var g = uraiCsv(contoh, p);
+      var lebar = g.map(function (r) { return r.length; }).sort(function (a, b) { return b - a; });
+      var s = lebar.length ? lebar[Math.floor(lebar.length / 4)] : 0;
+      if (s > skor) { skor = s; terbaik = p; }
+    });
+    return terbaik;
+  }
+
+  function aliasSemua() {
+    var set = {};
+    CFG.jenis.forEach(function (lap) {
+      pemetaan(lap).forEach(function (d) {
+        d.alias.forEach(function (a) { set[norm(a.replace(/#\d+$/, ''))] = true; });
+      });
+    });
+    delete set[''];
+    return set;
+  }
+
+  function barisData(row) {
+    var adaNpp = false, adaBlth = false, adaTgl = false, adaBulan = false, angka = 0;
+    for (var i = 0; i < row.length; i++) {
+      var x = String(row[i] || '').trim();
+      if (!x) continue;
+      if (/^(jan|feb|mar|apr|mei|may|jun|jul|agu|ags|aug|sep|okt|oct|nov|des|dec)$/i.test(x)) adaBulan = true;
+      if (keAngka(x) !== null) angka++;
+      if (/^[A-Z]{2}\d{6}$/i.test(x)) adaNpp = true;
+      else if (/^\d{7,8}$/.test(x) && !/^(19|20)\d{2}(0[1-9]|1[0-2])([0-2]\d|3[01])$/.test(x)) adaNpp = true;
+      else if (/^\d{1,2}[\-\/]\d{4}$/.test(x)) adaBlth = true;
+      else if (/^\d{1,2}[\-\/]\d{1,2}[\-\/]\d{2,4}$/.test(x)) adaTgl = true;
+    }
+    return adaNpp || (adaBlth && adaTgl) || (adaBulan && angka >= 8);
+  }
+
+  function barisJudulKelompok(row) {
+    var isi = row.filter(function (x) { return String(x || '').trim() !== ''; });
+    if (isi.length < 2) return false;
+    for (var i = 0; i < isi.length; i++) if (String(isi[i]).indexOf(':') >= 0) return false;
+    return true;
+  }
+
+  function analisaGrid(grid, namaFile) {
+    var semua = aliasSemua();
+    var terbaik = -1, skorTerbaik = 0;
+    var batas = Math.min(grid.length, 80);
+    for (var r = 0; r < batas; r++) {
+      var skor = 0;
+      for (var c = 0; c < grid[r].length; c++) {
+        var h = norm(grid[r][c]);
+        if (h && semua[h]) skor++;
+      }
+      if (skor > skorTerbaik) { skorTerbaik = skor; terbaik = r; }
+    }
+    if (skorTerbaik < 3) {
+      // judul kolom tidak dikenali: pakai baris tepat di atas data pertama, lalu andalkan urutan kolom
+      terbaik = -2;
+      for (var rr = 0; rr < batas; rr++) if (barisData(grid[rr])) { terbaik = rr - 1; break; }
+      if (terbaik === -2) throw new Error('Judul kolom laporan tidak ditemukan dan tidak ada baris NPP. Pastikan file adalah hasil ekspor laporan sistem (CSV/XLSX).');
+    }
+
+    var mulai = -1;
+    for (var r2 = terbaik + 1; r2 < grid.length; r2++) {
+      if (barisData(grid[r2])) { mulai = r2; break; }
+    }
+    if (mulai < 0) throw new Error('Tidak ada baris data (NPP) di bawah judul kolom.');
+
+    var atas = terbaik < 0 ? mulai : terbaik;
+    for (var k = 1; k <= 4 && terbaik >= 0 && terbaik - k >= 0; k++) {
+      if (barisJudulKelompok(grid[terbaik - k])) atas = terbaik - k;
+      else break;
+    }
+    var lebar = 0;
+    for (var r3 = atas; r3 < Math.min(grid.length, mulai + 5); r3++) lebar = Math.max(lebar, grid[r3].length);
+    var bagian = [], gabung = [];
+    for (var c2 = 0; c2 < lebar; c2++) {
+      var p = [];
+      for (var r4 = atas; r4 < mulai; r4++) {
+        var t = norm(grid[r4][c2]);
+        if (t) p.push(t);
+      }
+      bagian.push(p);
+      gabung.push(p.join(' '));
+    }
+    var dataPertama = grid[mulai], lebarData = 0;
+    for (var c3 = 0; c3 < dataPertama.length; c3++) if (String(dataPertama[c3]).trim() !== '') lebarData = c3 + 1;
+
+    // teks di luar tabel (judul atas dan catatan bawah) untuk tanggal cetak, periode, pembina
+    var luar = grid.slice(0, atas).map(function (x) { return x.join(' '); });
+    for (var r5 = mulai; r5 < grid.length; r5++) {
+      if (!barisData(grid[r5])) luar.push(grid[r5].join(' '));
+    }
+    var an = {
+      kepala: terbaik, atas: atas, mulai: mulai, lebar: lebar, lebarData: lebarData,
+      bagian: bagian, gabung: gabung, judulTeks: luar.join('\n'), namaFile: namaFile || ''
+    };
+    an.jenis = tebakJenis(gabung.join(' | '), namaFile);
+    return an;
+  }
+
+  /** Aturan pengenal jenis laporan. Jenis yang tidak dipakai aplikasi ini: ditolak dengan pesannya (CFG.tolak) atau dilewati. */
+  var ATURAN_JUDUL = [
+    ['PROYEK_JAKON', function (t) { return /no proyek/.test(t) && /(nilai iuran|tgl awal|masa proyek)/.test(t); }],
+    ['LENSA_STATUS', function (t) { return /kontak utama/.test(t) && /(status bayar|segmen)/.test(t); }],
+    ['KPI084', function (t) { return /pkbu itw/.test(t) && /menunggak/.test(t); }],
+    ['KPI085', function (t) { return /migrasi/.test(t) && /piutang/.test(t) && /pembina/.test(t); }],
+    ['ITW_ITB', function (t) { return / koef/.test(t) && / itb /.test(t); }],
+    ['ITW_ITB', function (t) { return /kecukupan ibr/.test(t) && /(blm posting|belum posting|penilaian)/.test(t); }],
+    ['KARTU_IURAN', function (t) { return /blth iuran/.test(t) && /(tanggal|tgl) bayar/.test(t); }],
+    ['IBR', function (t) { return (/jatuh tempo/.test(t) && /dibayar dimuka/.test(t)) || (/kode transaksi/.test(t) && / ijt /.test(t)); }],
+    ['MONITORING', function (t) { return /(penambahan|pengurangan)/.test(t) && /aktif/.test(t); }],
+    ['DATA_BU', function (t) { return /(nama ilo|kode ilo|rate jkk)/.test(t); }]
+  ];
+  var ATURAN_FILE = [
+    ['KPI084', /kpi\s*_?084/], ['KPI085', /kpi\s*_?085/], ['LENSA_STATUS', /status.?pk/], ['ITW_ITB', /itw|itb/], ['KARTU_IURAN', /kartu/],
+    ['MONITORING', /monitor/], ['DATA_BU', /badan.?usaha|dbu|data.?bu/], ['IBR', /ibr|belum.?rinci/], ['PROYEK_JAKON', /proyek.?jakon|jakon.?aktif/]
+  ];
+  function dipakai(j) { return CFG.jenis.indexOf(j) >= 0; }
+  function tebakJenis(teks, namaFile) {
+    var t = ' ' + teks + ' ', i;
+    for (i = 0; i < ATURAN_JUDUL.length; i++) {
+      var a = ATURAN_JUDUL[i];
+      if (!a[1](t)) continue;
+      if (dipakai(a[0])) return a[0];
+      if (CFG.tolak[a[0]]) throw new Error(CFG.tolak[a[0]]);
+    }
+    var f = String(namaFile || '').toLowerCase();
+    for (i = 0; i < ATURAN_FILE.length; i++) if (dipakai(ATURAN_FILE[i][0]) && ATURAN_FILE[i][1].test(f)) return ATURAN_FILE[i][0];
+    throw new Error('Jenis laporan tidak dikenali dari judul kolom maupun nama file.');
+  }
+
+  function cariKolom(an, alias, dipakai) {
+    var m = String(alias).match(/^(.*?)(\*)?(?:#(\d+))?$/);
+    var a = norm(m[1]), awalan = !!m[2], ke = m[3] ? +m[3] : 1, berurut = !!m[3];
+    if (!a) return -1;
+    var cocok = [], c;
+    var sama = function (c) { return an.gabung[c] === a || an.bagian[c].indexOf(a) >= 0; };
+    var memuat = function (c) { return (' ' + an.gabung[c] + ' ').indexOf(' ' + a + ' ') >= 0; };
+    if (awalan) {
+      for (c = 0; c < an.lebar; c++) {
+        if (an.gabung[c].indexOf(a) === 0 || an.bagian[c].some(function (p) { return p.indexOf(a) === 0; })) cocok.push(c);
+      }
+      return cocok.length >= ke ? cocok[ke - 1] : -1;
+    }
+    // #n: kolom ke-n (urut kiri ke kanan) yang judulnya sama atau memuat alias
+    if (berurut) {
+      for (c = 0; c < an.lebar; c++) if (sama(c) || memuat(c)) cocok.push(c);
+      return cocok.length >= ke ? cocok[ke - 1] : -1;
+    }
+    for (c = 0; c < an.lebar; c++) {
+      if (dipakai[c]) continue;
+      if (sama(c)) cocok.push(c);
+    }
+    if (!cocok.length) {
+      for (c = 0; c < an.lebar; c++) {
+        if (dipakai[c]) continue;
+        if (memuat(c)) cocok.push(c);
+      }
+      cocok.sort(function (x, y) { return x - y; });
+    }
+    return cocok.length >= ke ? cocok[ke - 1] : -1;
+  }
+
+  function cocokTipe(tipe, x) {
+    switch (tipe) {
+      case 'bulat': return /^-?(\d{1,3}(,\d{3})+|\d+)$/.test(x);
+      case 'angka': return keAngka(x) !== null;
+      case 'desimal': var a = keAngka(x, true); return a !== null && a < 100;
+      case 'digit': return /^[\d\s\-\+\(\)\/]{3,}$/.test(x) || rusakExcel(x);
+      case 'ilo': return /^\d{3,5}$/.test(x);
+      case 'blth': return !!keBlth(x) && !keTanggal(x) && !/^\d+$/.test(x);
+      case 'tgl': return !!keTanggal(x);
+      case 'teks': return /[A-Za-z]{2,}/.test(x) && !keBlth(x) && x.indexOf('@') < 0 && !/^(ya|tidak)$/i.test(x);
+      case 'email': return x.indexOf('@') > 0;
+      case 'npp': return !!rapikanNpp(x);
+      case 'div': return /^\d{1,3}$/.test(x);
+      case 'kode': return /^[A-Z]\d{2}$/i.test(x);
+      case 'pembina': return /^[A-Z]{2}\d{6}/i.test(x) || (/[A-Za-z]{3,}/.test(x) && !keBlth(x));
+      case 'yt': return /^(Y|T)$/i.test(x);
+      case 'yatidak': return /^(YA|TIDAK|Y|T)$/i.test(x);
+      case 'skala': return /^(B|Mn|K|Mi|MI|M)$/.test(x);
+      case 'prog': return /^\dP$/i.test(x);
+      case 'sipp': return /^(-|sipp|prs|sipp\/prs)$/i.test(x);
+      case 'kelas': return !!kelasDariTeks(x);
+      case 'noproyek': return /^\d{10,20}$/.test(x);
+      case 'kodetender': return /^[A-Za-z0-9][A-Za-z0-9\-\/\.]{1,40}$/.test(x);
+      case 'kanal': return /^[A-Za-z][A-Za-z \-]{1,20}$/.test(x);
+      case 'sumberdana': return /^[A-Za-z][A-Za-z0-9 \-\.]{1,30}$/.test(x);
+      case 'kontak': return /[A-Za-z]{2,}|\d{8,}/.test(x);
+    }
+    return true;
+  }
+
+  function barisContoh(an, grid) {
+    var out = [];
+    for (var r = an.mulai; r < grid.length && out.length < 150; r++) if (barisData(grid[r])) out.push(grid[r]);
+    return out;
+  }
+
+  function skorPeta(jenis, peta, contoh) {
+    var def = pemetaan(jenis), wajib = {};
+    def.forEach(function (d) { if (d.wajib) wajib[d.kolom] = true; });
+    var total = 0, ok = true, buruk = [];
+    Object.keys(peta).forEach(function (k) {
+      var tipe = TIPE_KOLOM[k];
+      if (!tipe) return;
+      var isi = 0, pas = 0;
+      contoh.forEach(function (row) {
+        var x = String(row[peta[k]] === undefined ? '' : row[peta[k]]).trim();
+        if (!x) return;
+        isi++;
+        if (cocokTipe(tipe, x)) pas++;
+      });
+      total += pas - (isi - pas);
+      if (wajib[k] && (!isi || pas / isi < 0.8)) { ok = false; buruk.push(k); }
+    });
+    return { total: total, ok: ok, buruk: buruk };
+  }
+
+  function petakanIsi(jenis, contoh) {
+    var urut = URUTAN_KOLOM[jenis];
+    if (!urut || !contoh.length) return null;
+    var lebar = 0;
+    contoh.forEach(function (r) { lebar = Math.max(lebar, r.length); });
+    var slot = [];
+    for (var c = 0; c < lebar; c++) {
+      if (contoh.some(function (r) { return String(r[c] === undefined ? '' : r[c]).trim() !== ''; })) slot.push(c);
+    }
+    var def = pemetaan(jenis), wajib = {};
+    def.forEach(function (d) { if (d.wajib) wajib[d.kolom] = true; });
+    var nilai = {};
+    function skor(i, j) {
+      var key = i + '|' + j;
+      if (nilai[key] !== undefined) return nilai[key];
+      var tipe = TIPE_KOLOM[urut[i]], isi = 0, pas = 0;
+      contoh.forEach(function (r) {
+        var x = String(r[slot[j]] === undefined ? '' : r[slot[j]]).trim();
+        if (!x) return;
+        isi++;
+        if (!tipe || cocokTipe(tipe, x)) pas++;
+      });
+      return (nilai[key] = isi ? pas / isi : 0);
+    }
+    var n = urut.length, m = slot.length, NEG = -1e9;
+    var dp = [], dari = [];
+    for (var i = 0; i <= n; i++) { dp.push([]); dari.push([]); for (var j = 0; j <= m; j++) { dp[i].push(NEG); dari[i].push(''); } }
+    dp[0][0] = 0;
+    for (i = 0; i <= n; i++) {
+      for (j = 0; j <= m; j++) {
+        var v = dp[i][j];
+        if (v === NEG) continue;
+        if (i < n && j < m) { var a = v + skor(i, j); if (a > dp[i + 1][j + 1]) { dp[i + 1][j + 1] = a; dari[i + 1][j + 1] = 'p'; } }
+        if (i < n) { var b = v - (wajib[urut[i]] ? 3 : SERING_KOSONG[urut[i]] ? 0.1 : 0.4); if (b > dp[i + 1][j]) { dp[i + 1][j] = b; dari[i + 1][j] = 'k'; } }
+        if (j < m) { var d = v - 0.6; if (d > dp[i][j + 1]) { dp[i][j + 1] = d; dari[i][j + 1] = 's'; } }
+      }
+    }
+    var peta = {};
+    i = n; j = m;
+    while (i > 0 || j > 0) {
+      var arah = dari[i][j];
+      if (arah === 'p') { peta[urut[i - 1]] = slot[j - 1]; i--; j--; }
+      else if (arah === 'k') i--;
+      else j--;
+    }
+    delete peta.no;
+    return peta;
+  }
+
+  function petakanKolom(an, grid) {
+    var contoh = grid ? barisContoh(an, grid) : [];
+    var judul = null, galatJudul = null;
+    try { judul = petakanJudul(an); } catch (e) { galatJudul = e; }
+    if (!contoh.length || an.jenis === 'KPI084' || !URUTAN_KOLOM[an.jenis]) {
+      if (galatJudul) throw galatJudul;
+      return judul;
+    }
+    var sJudul = judul ? skorPeta(an.jenis, judul, contoh) : null;
+    var isi = petakanIsi(an.jenis, contoh);
+    var sIsi = isi ? skorPeta(an.jenis, isi, contoh) : null;
+    if (sJudul && sJudul.ok && (!sIsi || !sIsi.ok || sIsi.total <= sJudul.total * 1.05)) return judul;
+    if (sIsi && sIsi.ok) {
+      an.posisi = false;
+      an.menurutIsi = true;
+      return isi;
+    }
+    if (galatJudul) throw galatJudul;
+    throw new Error('Isi kolom tidak sesuai dengan laporan ' + NAMA_LAPORAN[an.jenis] + ' (kolom bermasalah: ' + ((sJudul && sJudul.buruk) || []).join(', ') +
+      ').' + (CFG.saranPemetaan ? ' Kirim baris judul kolom file ini ke pengembang, atau sesuaikan tab PEMETAAN.' : ''));
+  }
+
+  function petakanJudul(an) {
+    var def = pemetaan(an.jenis);
+    var peta = {}, dipakai = {};
+    def.forEach(function (d) {
+      var c = -1;
+      for (var i = 0; i < d.alias.length && c < 0; i++) c = cariKolom(an, d.alias[i], dipakai);
+      if (c >= 0) { peta[d.kolom] = c; dipakai[c] = true; }
+    });
+    var kurang = def.filter(function (d) { return d.wajib && peta[d.kolom] === undefined; }).map(function (d) { return d.kolom; });
+    if (kurang.length) {
+      var urut = URUTAN_KOLOM[an.jenis];
+      if (urut && (an.lebarData === urut.length || an.lebar === urut.length)) {
+        peta = {};
+        urut.forEach(function (k, i) { peta[k] = i; });
+        kurang = [];
+        an.posisi = true;
+      }
+    }
+    if (kurang.length) {
+      var judul = an.gabung.filter(String).join(' | ');
+      throw new Error('Kolom wajib tidak ditemukan: ' + kurang.join(', ') + '. Judul kolom di file: ' + judul +
+        '.' + (CFG.saranPemetaan ? ' Tambahkan judul yang sesuai di tab PEMETAAN (kolom judul_di_laporan).' : ''));
+    }
+    return peta;
+  }
+
+  /**
+   * Baris kelompok "Pembina : AB123456 - NAMA" (laporan se-KC: satu kelompok per pembina, judul kolom berulang)
+   * → kode pembina untuk baris-baris di bawahnya. 3C: untuk IBR; 3C.1: untuk semua jenis laporan ber-NPP.
+   */
+  var POLA_PEMBINA = /pembina\s*:?\s*([A-Z]{2}\d{6})/i;
+  // Tahap 7 (Proyek Jakon Aktif): kelompok "Pembina : EJAKON - EJAKON" = proyek dari E-Jakon yang belum dibagi; nama pembina ikut
+  var POLA_PEMBINA_PJ = /pembina\s*:?\s*([A-Z]{2}\d{6}|EJAKON)(?:\s*-\s*([A-Za-z][A-Za-z .,'\-]*[A-Za-z]))?/i;
+  function ambilBaris(an, peta, grid) {
+    var out = [], prev = null, pembinaGrup = '', namaGrup = '', pj = an.jenis === 'PROYEK_JAKON', pola = pj ? POLA_PEMBINA_PJ : POLA_PEMBINA;
+    var grupDari = function (m) { pembinaGrup = m[1].toUpperCase(); namaGrup = pj && m[2] ? judulKata(m[2].replace(/\s{2,}.*$/, '')) : ''; };
+    for (var r0 = 0; r0 < an.mulai; r0++) { var m0 = (grid[r0] || []).join(' ').match(pola); if (m0) grupDari(m0); }
+    for (var r = an.mulai; r < grid.length; r++) {
+      var row = grid[r];
+      if (peta.npp !== undefined && !rapikanNpp(row[peta.npp])) {
+        var mP = row.join(' ').match(pola);
+        if (mP) grupDari(mP);
+        if (an.jenis === 'IBR') continue; // judul kelompok, judul kolom berulang, jumlah
+      }
+      var o = {};
+      Object.keys(peta).forEach(function (k) {
+        var x = row[peta[k]];
+        o[k] = x === undefined || x === null ? '' : String(x).trim();
+      });
+      if (an.jenis === 'KARTU_IURAN') {
+        if (!/^\d/.test(o.blth_iuran) || !keBlth(o.blth_iuran)) continue;
+        out.push(o);
+        continue;
+      }
+      if (an.jenis === 'KPI084') {
+        var bl = norm(o.bulan);
+        if (!BULAN_SINGKAT[bl.slice(0, 3)] || !/^[a-z]+$/.test(bl)) continue;
+        if (out.some(function (x) { return norm(x.bulan) === bl; })) break; // blok kedua (konsolidasi)
+        out.push(o);
+        continue;
+      }
+      var npp = rapikanNpp(o.npp);
+      if (pj) {
+        // satu baris per No. Proyek; proyek swakelola tanpa NPP tetap diambil
+        if (!/^\d{10,20}$/.test(o.no_proyek)) { prev = null; continue; }
+        o.npp = npp;
+        o.pembina = pembinaGrup; o.pembina_nama = namaGrup;
+        out.push(o);
+        continue;
+      }
+      if (npp) {
+        o.npp = npp;
+        o.div = rapikanDiv(o.div);
+        if (!o.pembina && pembinaGrup) o.pembina = pembinaGrup;
+        out.push(o);
+        prev = o;
+        continue;
+      }
+      var isi = row.filter(function (x) { return String(x || '').trim() !== ''; });
+      if (!isi.length) { prev = null; continue; }
+      var adaTitikDua = isi.some(function (x) { return String(x).indexOf(':') >= 0 || /^-/.test(String(x).trim()); });
+      if (prev && an.jenis === 'DATA_BU' && !adaTitikDua) {
+        ['nama', 'nama_ilo', 'alamat', 'pic_nama', 'pic_jabatan'].forEach(function (k) {
+          if (o[k]) prev[k] = (prev[k] ? prev[k] + ' ' : '') + o[k];
+        });
+        if (o.pic_email) prev.pic_email = (prev.pic_email || '') + o.pic_email;
+      } else {
+        prev = null;
+      }
+    }
+    return out;
+  }
+
+  function tentukanPeriode(an) {
+    var t = an.judulTeks || '', m, cetak = '';
+    m = t.match(/(?:tanggal cetak|tgl\.? cetak|tanggal|tgl)\s*:?\s*(\d{1,2}[\-\/\.]\d{1,2}[\-\/\.]\d{2,4})/i);
+    if (m) cetak = keTanggal(m[1]);
+    if (!cetak) {
+      m = t.match(/periode\s*:?\s*(\d{1,2}[\-\/\. ][a-z]{3}[a-z]*[\-\/\. ]\d{2,4})/i);
+      if (m) cetak = keTanggal(m[1]);
+    }
+    if (!cetak) {
+      var f = an.namaFile || '';
+      m = f.match(/((?:19|20)\d{2})[\-_\.]?(0[1-9]|1[0-2])[\-_\.]?([0-2]\d|3[01])/);
+      if (m) cetak = ymd(m[1], m[2], m[3]);
+      else if ((m = f.match(/([0-2]\d|3[01])[\-_\.](0[1-9]|1[0-2])[\-_\.]((?:19|20)\d{2})/))) cetak = ymd(m[3], m[2], m[1]);
+      // Tahap 7: unduhan Proyek Jakon Aktif bernama ..._24112026 (ddmmyyyy tanpa pemisah)
+      else if (an.jenis === 'PROYEK_JAKON' && (m = f.match(/(?:^|[^\d])([0-2]\d|3[01])(0[1-9]|1[0-2])((?:19|20)\d{2})(?:[^\d]|$)/))) cetak = ymd(m[3], m[2], m[1]);
+    }
+    var dariJudul = !!cetak;
+    var kini = CFG.hariIni();
+    if (!cetak || cetak > kini) cetak = kini;
+    var lap = '';
+    m = t.match(/periode\s*:?\s*(\d{1,2}[\-\/]\d{4})(?!\d)/i);
+    if (m) lap = keBlth(m[1]);
+    var pembina = '', namaPembina = '';
+    m = t.match(/pembina\s*:?\s*([A-Z]{2}\d{6})(?:\s*-\s*([A-Za-z][A-Za-z .,'\-]+))?/i);
+    if (m) { pembina = m[1].toUpperCase(); namaPembina = m[2] ? judulKata(m[2].replace(/\s{2,}.*$/, '')) : ''; }
+    return { tanggal: cetak, dariJudul: dariJudul, laporan: lap, pembina: pembina, namaPembina: namaPembina };
+  }
+
+  function cekPosisi(jenis, data) {
+    var uji = {
+      ITW_ITB: function (o) { return keBlth(o.periode_nilai) && keYT(o.itw) && keYT(o.itb); },
+      MONITORING: function (o) { return (!o.blth_posting || keBlth(o.blth_posting)) && (!o.tgl_terima || keTanggal(o.tgl_terima)) && /^(B|Mn|K|Mi|MI|)$/.test(String(o.skala).trim()); },
+      DATA_BU: function (o) { return keAngka(o.total_upah) !== null && (!o.blth_iuran || keBlth(o.blth_iuran)); },
+      KARTU_IURAN: function (o) { return keTanggal(o.tgl_bayar) && keAngka(o.total_iuran) !== null; },
+      KPI084: function (o) { return keAngka(o.pk_itw) !== null && keAngka(o.mig_itw) !== null; },
+      KPI085: function (o) { return kelasDariTeks(o.kelas_lalu) && /^(YA|TIDAK|Y|T)$/i.test(String(o.migrasi).trim()); },
+      PROYEK_JAKON: function (o) { return keTanggal(o.tgl_awal) && keAngka(o.nilai_proyek) !== null; }
+    }[jenis];
+    if (!uji) return;
+    var cocok = data.filter(uji).length;
+    if (cocok < data.length * 0.9) {
+      throw new Error('Judul kolom tidak dikenali dan isi kolom tidak sesuai urutan ' + NAMA_LAPORAN[jenis] + ' (' + cocok + ' dari ' + data.length +
+        ' baris cocok).' + (CFG.saranPemetaan ? ' Tambahkan judul kolom yang dipakai file ini di tab PEMETAAN.' : ''));
+    }
+  }
+
+  function ambilKpi084(grid) {
+    var kunci = ['pk_itw', 'pk_lancar', 'pk_kurang_lancar', 'pk_diragukan', 'pk_macet', 'mig_itw', 'mig_lancar', 'mig_kurang_lancar', 'mig_diragukan',
+      'cap_itw', 'cap_lancar', 'cap_kurang_lancar', 'cap_diragukan', 'rata_itw', 'rata_lancar', 'rata_kurang_lancar', 'rata_diragukan', 'bobot', 'skor'];
+    var out = [], lihat = {};
+    grid.forEach(function (row) {
+      for (var c = 0; c < row.length; c++) {
+        var x = norm(row[c]);
+        if (!/^[a-z]{3,9}$/.test(x) || !BULAN_SINGKAT[x.slice(0, 3)] || !BULAN_KPI.test(x)) continue;
+        var angka = [];
+        for (var d = c + 1; d < row.length && angka.length < kunci.length; d++) {
+          var s = String(row[d] === undefined ? '' : row[d]).trim();
+          if (!s) continue;
+          var a = keAngka(s, true);
+          if (a === null) { angka = null; break; }
+          angka.push(s);
+        }
+        if (!angka || angka.length < 9) continue;
+        var b = x.slice(0, 3);
+        if (lihat[b]) return; // blok kedua (konsolidasi) sama isinya
+        lihat[b] = true;
+        var o = { bulan: x };
+        kunci.forEach(function (k, i) { o[k] = angka[i] === undefined ? '' : angka[i]; });
+        out.push(o);
+        return;
+      }
+    });
+    return out;
+  }
+
+  function bacaRekapItw(grid) {
+    for (var r = 0; r < grid.length; r++) {
+      var row = grid[r].map(norm);
+      if (row.indexOf('jml itw') >= 0 || row.indexOf('jumlah itw') >= 0) {
+        for (var k = r + 1; k < Math.min(grid.length, r + 5); k++) {
+          var angka = [];
+          grid[k].forEach(function (x) {
+            var s = String(x || '').trim();
+            if (!s || s.indexOf('%') >= 0) return;
+            var a = keAngka(s);
+            if (a !== null) angka.push(a);
+          });
+          if (angka.length >= 4) return { aktif: angka[0], itw: angka[1], target: angka[2], itb: angka[3] };
+        }
+      }
+    }
+    return null;
+  }
+  /* ---------------- pemetaan judul kolom (bawaan + tab PEMETAAN) ---------------- */
+
+  var _PEMETAAN = null;
+  function pemetaan(lap) {
+    if (!_PEMETAAN) {
+      var p = {};
+      Object.keys(DEF_PEMETAAN).forEach(function (l) {
+        p[l] = DEF_PEMETAAN[l].map(function (d) { return { kolom: d[0], alias: d[1].split('|'), wajib: d[2] === 'Ya' }; });
+      });
+      var tambahan = [];
+      try { tambahan = CFG.tambahan() || []; } catch (e) { tambahan = []; }
+      tambahan.forEach(function (o) {
+        var l = String(o.laporan).trim(), k = String(o.kolom_lensa).trim();
+        if (!p[l] || !k) return;
+        var alias = String(o.judul_di_laporan || '').split('|').map(function (x) { return x.trim(); }).filter(String);
+        var ada = null;
+        p[l].forEach(function (d) { if (d.kolom === k) ada = d; });
+        if (ada) {
+          // alias dari tab PEMETAAN didahulukan, alias bawaan tetap jadi cadangan
+          ada.alias = alias.concat(ada.alias.filter(function (a) { return alias.indexOf(a) < 0; }));
+          ada.wajib = String(o.wajib).trim() === 'Ya' || ada.wajib;
+        } else if (alias.length) {
+          p[l].push({ kolom: k, alias: alias, wajib: String(o.wajib).trim() === 'Ya' });
+        }
+      });
+      _PEMETAAN = p;
+    }
+    return _PEMETAAN[lap] || [];
+  }
+
+  /* ---------------- SPPG ---------------- */
+
+  /** Nama badan usaha program Makan Bergizi (Satuan Pelayanan Pemenuhan Gizi). */
+  function adalahSppg(nama) {
+    var n = ' ' + String(nama || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ') + ' ';
+    return / SPPG |PEMENUHAN GIZI/.test(n);
+  }
+
+  /* ---------------- urai utuh ---------------- */
+
+  /** grid (baris × sel teks) → { an, peta, data, per, rekap }. Galat bila jenis/kolom tidak dikenali. */
+  function urai(grid, namaFile) {
+    var an = analisaGrid(grid, namaFile);
+    var peta = an.jenis === 'KPI084' ? {} : petakanKolom(an, grid);
+    var data = an.jenis === 'KPI084' ? ambilKpi084(grid) : ambilBaris(an, peta, grid);
+    if (!data.length) throw new Error('Tidak ada baris data yang terbaca.');
+    if (an.posisi) cekPosisi(an.jenis, data);
+    return { an: an, peta: peta, data: data, per: tentukanPeriode(an), rekap: an.jenis === 'ITW_ITB' ? bacaRekapItw(grid) : null, namaFile: namaFile || '' };
+  }
+  function uraiTeks(teks, namaFile) { return urai(uraiCsv(teks, deteksiPemisah(teks)), namaFile); }
+
+  /* ---------------- laporan ringkas (dikirim ke Gudang) ---------------- */
+
+  /** Jenis yang disimpan di Gudang Laporan KC (Kartu Iuran tetap di LENSA; Status PK hanya Monitor). */
+  var GUDANG = { ITW_ITB: true, MONITORING: true, DATA_BU: true, KPI084: true, KPI085: true, IBR: true };
+  var MAKS_JUDUL_TEKS = 4000;
+
+  /** Hasil urai → laporan ringkas: hanya kolom yang terbaca, nilai teks apa adanya. */
+  function ringkas(h) {
+    var kolom = Object.keys(h.peta), nPeta = kolom.length;
+    h.data.forEach(function (o) { Object.keys(o).forEach(function (k) { if (kolom.indexOf(k) < 0) kolom.push(k); }); });
+    var lr = {
+      v: 1, jenis: h.an.jenis, nama_file: String(h.namaFile || h.an.namaFile || ''),
+      per: { tanggal: h.per.tanggal || '', laporan: h.per.laporan || '', pembina: h.per.pembina || '', namaPembina: h.per.namaPembina || '', dariJudul: !!h.per.dariJudul },
+      kolom: kolom, nPeta: nPeta,
+      judul: kolom.map(function (k) { return h.peta[k] !== undefined ? String(h.an.gabung[h.peta[k]] || '') : ''; }),
+      baris: h.data.map(function (o) { return kolom.map(function (k) { return o[k] === undefined || o[k] === null ? '' : String(o[k]); }); }),
+      posisi: !!h.an.posisi, menurutIsi: !!h.an.menurutIsi,
+      judulTeks: String(h.an.judulTeks || '').slice(0, MAKS_JUDUL_TEKS), rekap: h.rekap || null
+    };
+    // laporan se-KC (beberapa pembina): judul (pembina kelompok pertama) tidak mewakili seluruh laporan → 'SEMUA'
+    var iPb = kolom.indexOf('pembina'), kode = {};
+    if (iPb >= 0) lr.baris.forEach(function (r) { var m = String(r[iPb] || '').toUpperCase().match(/[A-Z]{2}\d{6}|^EJAKON$/); if (m) kode[m[0]] = true; }); // EJAKON: Proyek Jakon belum dibagi
+    if (Object.keys(kode).length > 1) { lr.per.pembina = ''; lr.per.namaPembina = ''; }
+    lr.pembina = pembinaLaporan(lr);
+    lr.sidik = sidik(lr);
+    return lr;
+  }
+
+  /** Laporan ringkas → bentuk yang sama dengan hasil urai (an, peta, data, per, rekap). */
+  function buka(lr) {
+    var peta = {}, gabung = [];
+    lr.kolom.forEach(function (k, i) { if (i < (lr.nPeta === undefined ? lr.kolom.length : lr.nPeta)) peta[k] = i; gabung.push(String((lr.judul || [])[i] || '')); });
+    var data = (lr.baris || []).map(function (r) {
+      var o = {};
+      lr.kolom.forEach(function (k, i) { o[k] = r[i] === undefined || r[i] === null ? '' : String(r[i]); });
+      return o;
+    });
+    var an = { jenis: lr.jenis, gabung: gabung, judulTeks: lr.judulTeks || '', namaFile: lr.nama_file || '', posisi: !!lr.posisi, menurutIsi: !!lr.menurutIsi, mulai: 0, lebar: lr.kolom.length, ringkas: true };
+    var p = lr.per || {};
+    return { an: an, peta: lr.jenis === 'KPI084' ? {} : peta, data: data, rekap: lr.rekap || null, namaFile: lr.nama_file || '',
+      per: { tanggal: p.tanggal || '', laporan: p.laporan || '', pembina: p.pembina || '', namaPembina: p.namaPembina || '', dariJudul: !!p.dariJudul } };
+  }
+
+  /** Pembina laporan: dari judul, atau satu-satunya kode di kolom pembina; 'SEMUA' bila beberapa pembina. */
+  function pembinaLaporan(lr) {
+    if (lr.per && lr.per.pembina) return lr.per.pembina;
+    var i = lr.kolom.indexOf('pembina'), kode = {};
+    if (i < 0 || lr.jenis === 'KPI085') return lr.jenis === 'KPI084' || lr.jenis === 'KPI085' ? 'KANTOR' : '';
+    (lr.baris || []).forEach(function (r) { var m = String(r[i] || '').toUpperCase().match(/[A-Z]{2}\d{6}|^EJAKON$/); if (m) kode[m[0]] = true; });
+    var k = Object.keys(kode);
+    return k.length === 1 ? k[0] : (k.length > 1 ? 'SEMUA' : '');
+  }
+
+  /** Laporan ringkas → grid sederhana yang dikenali pengurai lama (untuk Monitor SPPG ≤ 1.5 lewat jembatan). */
+  function keGrid(lr) {
+    var def = {};
+    (DEF_PEMETAAN[lr.jenis] || []).forEach(function (d) { def[d[0]] = d[1].split('|')[0].replace(/#\d+$/, '').replace(/\*$/, ''); });
+    var g = String(lr.judulTeks || '').split('\n').filter(function (t) { return /\S/.test(t); }).slice(0, 8).map(function (t) { return [t]; });
+    g.push(lr.kolom.map(function (k) { return def[k] || k.replace(/_/g, ' '); }));
+    (lr.baris || []).forEach(function (r) { g.push(r.slice()); });
+    return g;
+  }
+
+  /** Sidik isi (penolak unggahan ganda): sama bila jenis, tanggal data, pembina, dan semua baris sama. */
+  function sidik(lr) {
+    var s = JSON.stringify([lr.jenis, (lr.per || {}).tanggal, (lr.per || {}).laporan, (lr.per || {}).pembina, lr.kolom, lr.baris]);
+    return hash(s, 1) + hash(s, 7);
+  }
+  /** Hash 53-bit (cyrb53) → 14 karakter heksa. */
+  function hash(s, benih) {
+    var h1 = 0xdeadbeef ^ (benih || 0), h2 = 0x41c6ce57 ^ (benih || 0);
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    var n = 4294967296 * (2097151 & h2) + (h1 >>> 0);
+    return ('00000000000000' + n.toString(16)).slice(-14);
+  }
+
+  /** Laporan ringkas kiriman perangkat diperiksa & dirapikan sebelum disimpan (sidik & pembina dihitung ulang). */
+  function periksa(x) {
+    if (!x || typeof x !== 'object') throw new Error('Laporan kosong.');
+    if (!NAMA_LAPORAN[x.jenis]) throw new Error('Jenis laporan tidak dikenal: ' + String(x.jenis).slice(0, 40));
+    var kolom = x.kolom;
+    if (!Array.isArray(kolom) || !kolom.length || kolom.length > 60 || kolom.some(function (k) { return typeof k !== 'string' || !/^[a-z0-9_]{1,40}$/.test(k); })) throw new Error('Kolom laporan tidak sah.');
+    if (!Array.isArray(x.baris) || !x.baris.length || x.baris.length > 50000) throw new Error('Baris laporan kosong atau terlalu banyak.');
+    var teks = function (v, n) { return v === null || v === undefined ? '' : String(v).slice(0, n || 1000); };
+    var baris = x.baris.map(function (r) {
+      if (!Array.isArray(r) || r.length !== kolom.length) throw new Error('Baris laporan tidak sesuai kolom.');
+      return r.map(function (v) { if (v !== null && typeof v === 'object') throw new Error('Isi sel tidak sah.'); return teks(v); });
+    });
+    var p = x.per || {}, rk = x.rekap && typeof x.rekap === 'object' ? x.rekap : null, rekap = null;
+    if (rk) { rekap = {}; ['aktif', 'itw', 'target', 'itb'].forEach(function (k) { rekap[k] = Number(rk[k]) || 0; }); }
+    var lr = {
+      v: 1, jenis: x.jenis, nama_file: teks(x.nama_file || 'laporan', 200),
+      per: { tanggal: /^\d{4}-\d{2}-\d{2}$/.test(p.tanggal) ? p.tanggal : '', laporan: /^\d{4}-\d{2}$/.test(p.laporan) ? p.laporan : '', pembina: /^[A-Z]{2}\d{6}$/.test(p.pembina) ? p.pembina : '', namaPembina: teks(p.namaPembina, 80), dariJudul: !!p.dariJudul },
+      kolom: kolom.slice(), nPeta: Math.max(0, Math.min(kolom.length, Number(x.nPeta === undefined ? kolom.length : x.nPeta) || 0)),
+      judul: kolom.map(function (k, i) { return teks((x.judul || [])[i], 200); }),
+      baris: baris, posisi: !!x.posisi, menurutIsi: !!x.menurutIsi, judulTeks: teks(x.judulTeks, MAKS_JUDUL_TEKS), rekap: rekap
+    };
+    if (!lr.per.tanggal) throw new Error('Tanggal data laporan tidak ada.');
+    lr.pembina = pembinaLaporan(lr);
+    lr.sidik = sidik(lr);
+    return lr;
+  }
+
+  /** Kunci penggantian: laporan jenis + tanggal + pembina (atau nama file) yang sama menggantikan yang lama. */
+  function kunciLaporan(lr) { return lr.jenis + '|' + ((lr.per || {}).tanggal || '') + '|' + (lr.pembina || (lr.per || {}).pembina || lr.nama_file || ''); }
+
+  return {
+    VERSI: VERSI, pasang: pasang, lupakan: lupakan, CFG: CFG,
+    DEF_PEMETAAN: DEF_PEMETAAN, URUTAN_KOLOM: URUTAN_KOLOM, NAMA_LAPORAN: NAMA_LAPORAN, BULAN_SINGKAT: BULAN_SINGKAT, BULAN_KPI: BULAN_KPI, GUDANG: GUDANG,
+    uraiCsv: uraiCsv, deteksiPemisah: deteksiPemisah, aliasSemua: aliasSemua, pemetaan: pemetaan, analisaGrid: analisaGrid, tebakJenis: tebakJenis,
+    cariKolom: cariKolom, petakanKolom: petakanKolom, petakanJudul: petakanJudul, petakanIsi: petakanIsi, ambilBaris: ambilBaris, ambilKpi084: ambilKpi084,
+    tentukanPeriode: tentukanPeriode, cekPosisi: cekPosisi, bacaRekapItw: bacaRekapItw,
+    urai: urai, uraiTeks: uraiTeks, ringkas: ringkas, buka: buka, periksa: periksa, keGrid: keGrid, sidik: sidik, hash: hash, pembinaLaporan: pembinaLaporan, kunciLaporan: kunciLaporan,
+    adalahSppg: adalahSppg, norm: norm, keAngka: keAngka, keTanggal: keTanggal, keBlth: keBlth, keYT: keYT, rapikanNpp: rapikanNpp, rapikanDiv: rapikanDiv,
+    rusakExcel: rusakExcel, kelasDariTeks: kelasDariTeks, judulKata: judulKata
+  };
+})();
+
+/* === kit:wilayah === */
+/* =====================================================================
+ *  KitWilayah — daftar wilayah Kabupaten Pamekasan + pencocok ejaan (LENSA Suite Tahap 7, 24 Nov 2026). ES5.
+ *  13 kecamatan, 178 desa (daftar MyTagihan Desa kiriman Hafidz) + 11 kelurahan (BPS: 9 di Kec. Pamekasan, 2 di Pademawu).
+ *  Nama tampil mengikuti MyTagihan Desa. Pencocokan memakai "kunci" ejaan yang diseragamkan, sehingga
+ *  Lesong Daya = Lesong Daja, Palenggaan = Palengaan, Rek Kerrek = Rekkerek, Tlagah = Tlaga.
+ *  Aturan (keputusan Hafidz 24 Nov 2026):
+ *   - nama desa dicek lebih dulu daripada nama kecamatan (Larangan Tokol ada di Tlanakan, Larangan Badung di Palengaan);
+ *   - nama desa yang sama di dua kecamatan (Tanjung, Panaguan) → calon, petugas yang memilih bila kecamatan tidak disebut;
+ *   - Pamoroh & Pamaroh (Kadur) dua desa berbeda: kunci tetap berbeda, kemiripan tidak menyatukan nama yang tepat sama;
+ *   - kata "Pamekasan" saja = kabupaten, bukan Kecamatan Pamekasan (kecuali didahului KEC.);
+ *   - kamus koreksi petugas (alias) ditambahkan lewat pasangAlias.
+ *  Dipakai server & aplikasi SIGAP Jakon; bisa dipakai LENSA (peta panas) kemudian.
+ * ===================================================================== */
+var KitWilayah = (function () {
+  var KECAMATAN = ['Batumarmar', 'Galis', 'Kadur', 'Larangan', 'Pademawu', 'Pakong', 'Palengaan', 'Pamekasan',
+    'Pasean', 'Pegantenan', 'Proppo', 'Tlanakan', 'Waru'];
+  var LUAR = 'Luar Pamekasan', TAKTAHU = 'Belum diketahui';
+  var DESA = {
+    "Batumarmar": ["Bangsereh", "Batubintang", "Blaban", "Bujur Barat", "Bujur Tengah", "Bujur Timur", "Kapong", "Lesong Daja", "Lesong Laok", "Pangereman", "Ponjanan Barat", "Ponjanan Timur", "Tamberu"],
+    "Galis": ["Artodung", "Bulay", "Galis", "Konang", "Lembung", "Pagendingan", "Pandan", "Polagan", "Ponteh", "Tobungan"],
+    "Kadur": ["Bangkes", "Bungbaruh", "Gagah", "Kadur", "Kertagena Dajah", "Kertagena Laok", "Kertagena Tengah", "Pamaroh", "Pamoroh", "Sokolelah"],
+    "Larangan": ["Blumbungan", "Duko Timur", "Grujugan", "Kaduara Barat", "Lancar", "Larangan Dalam", "Larangan Luar", "Montok", "Panaguan", "Peltong", "Taraban", "Tentenan Barat", "Tentenan Timur", "Trasak"],
+    "Pademawu": ["Baddurih", "Buddagan", "Buddih", "Bunder", "Dasok", "Durbuk", "Jarin", "Lemper", "Majungan", "Murtajih", "Padelegan", "Pademawu Barat", "Pademawu Timur", "Pagagan", "Prekbun", "Sentol", "Sopaah", "Sumedangan", "Tambung", "Tanjung"],
+    "Pakong": ["Bajang", "Banban", "Bandungan", "Bicorong", "Cenlecen", "Klompang Barat", "Klompang Timur", "Lebbek", "Pakong", "Palalang", "Seddur", "Somalang"],
+    "Palengaan": ["Akkor", "Angsanah", "Banyupelle", "Kacok", "Larangan Badung", "Palengaan Dajah", "Palengaan Laok", "Panaan", "Potoan Daja", "Potoan Laok", "Rek Kerrek", "Rombuh"],
+    "Pamekasan": ["Bettet", "Jalmak", "Laden", "Nyalabu Daya", "Nyalabu Laok", "Panempan", "Teja Barat", "Teja Timur", "Toronan"],
+    "Pasean": ["Batukerbuy", "Bindang", "Dempo Barat", "Dempo Timur", "Sana Daja", "Sana Tengah", "Sotabar", "Tagangser Daja", "Tlonto Raja"],
+    "Pegantenan": ["Ambender", "Bulangan Barat", "Bulangan Branta", "Bulangan Haji", "Bulangan Timur", "Palesanggar", "Pasanggar", "Pegantenan", "Plakpak", "Tanjung", "Tebul Barat", "Tebul Timur", "Tlagah"],
+    "Proppo": ["Badung", "Banyubulu", "Batukalangan", "Billaan", "Campor", "Candi Burung", "Groom", "Jambringin", "Karanganyar", "Klampar", "Kodik", "Lenteng", "Mapper", "Panaguan", "Pangbatok", "Panglemah", "Pangtonggal", "Pangurayan", "Proppo", "Rangperang Daja", "Rangperang Laok", "Samatan", "Samiran", "Srambah", "Tattangoh", "Tlangoh", "Toket"],
+    "Tlanakan": ["Ambat", "Bandaran", "Branta Pesisir", "Branta Tinggi", "Bukek", "Ceguk", "Dabuan", "Gugul", "Kramat", "Larangan Slampar", "Larangan Tokol", "Mangar", "Panglegur", "Taroan", "Terrak", "Tlanakan", "Tlesah"],
+    "Waru": ["Bajur", "Ragang", "Sana Laok", "Sumber Waru", "Tagangser Laok", "Tampojung Guwa", "Tampojung Pregi", "Tampojung Tengah", "Tampojung Tenggina", "Tlonto Ares", "Waru Barat", "Waru Timur"]
+  };
+  // BPS (Kabupaten Pamekasan Dalam Angka 2024): 11 kelurahan
+  var KELURAHAN = {
+    "Pamekasan": ["Barurambat Kota", "Bugih", "Gladak Anyar", "Jungcangcang", "Kangenan", "Kolpajung", "Kowel", "Parteker", "Patemon"],
+    "Pademawu": ["Barurambat Timur", "Lawangan Daya"]
+  };
+  // kabupaten/kota lain (Jawa Timur) untuk mengenali lokasi di luar Pamekasan
+  var KAB_LAIN = ['Bangkalan', 'Sampang', 'Sumenep', 'Surabaya', 'Sidoarjo', 'Gresik', 'Lamongan', 'Tuban', 'Bojonegoro', 'Ngawi', 'Madiun',
+    'Magetan', 'Ponorogo', 'Pacitan', 'Trenggalek', 'Tulungagung', 'Blitar', 'Kediri', 'Nganjuk', 'Jombang', 'Mojokerto', 'Malang', 'Batu',
+    'Pasuruan', 'Probolinggo', 'Lumajang', 'Jember', 'Bondowoso', 'Situbondo', 'Banyuwangi'];
+
+  /* ---------- kunci ejaan ---------- */
+  var KATA = { daya: 'daja', dajah: 'daja', dhaja: 'daja', dhaje: 'daja', lao: 'laok', lauk: 'laok', laok: 'laok', temor: 'timur', bara: 'barat' };
+  function kataKunci(w) {
+    w = KATA[w] || w;
+    w = w.replace(/oe/g, 'u').replace(/dj/g, 'j').replace(/tj/g, 'c').replace(/([bdgt])h/g, '$1');
+    w = w.replace(/([a-z])\1+/g, '$1');            // huruf ganda: palenggaan → palengan, kerrek → kerek
+    if (w.length > 3) w = w.replace(/([aiueo])h$/, '$1'); // h akhir: tlagah → tlaga
+    return w;
+  }
+  function kataKata(s) {
+    return String(s === null || s === undefined ? '' : s).toLowerCase().replace(/['’`]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(String);
+  }
+  /** Kunci nama: kata diseragamkan lalu digabung tanpa spasi. */
+  function kunci(s) { return kataKata(s).map(kataKunci).join('').replace(/([a-z])\1+/g, '$1'); }
+
+  function bigram(s) { var x = {}, n = 0; for (var i = 0; i < s.length - 1; i++) { var g = s.substr(i, 2); x[g] = (x[g] || 0) + 1; n++; } return { x: x, n: n }; }
+  function mirip(a, b) {
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    var A = bigram(a), B = bigram(b), sama = 0;
+    Object.keys(A.x).forEach(function (g) { if (B.x[g]) sama += Math.min(A.x[g], B.x[g]); });
+    return A.n + B.n ? 2 * sama / (A.n + B.n) : 0;
+  }
+
+  /* ---------- indeks ---------- */
+  var IDX = null, ALIAS = [];
+  function bangun() {
+    var desa = {}, kec = {}, kab = {}, semua = [];
+    KECAMATAN.forEach(function (k) {
+      kec[kunci(k)] = k;
+      (DESA[k] || []).concat(KELURAHAN[k] || []).forEach(function (d) {
+        var o = { kec: k, desa: d, kel: (KELURAHAN[k] || []).indexOf(d) >= 0, kunci: kunci(d) };
+        (desa[o.kunci] = desa[o.kunci] || []).push(o); semua.push(o);
+      });
+    });
+    kec[kunci('Batu Marmar')] = 'Batumarmar';
+    ALIAS.forEach(function (a) {
+      var k = kunci(a.teks); if (!k) return;
+      var o = { kec: a.kecamatan, desa: a.desa || '', kel: false, kunci: k, alias: true };
+      if (a.desa) { desa[k] = [o]; } else kec[k] = a.kecamatan;
+    });
+    KAB_LAIN.forEach(function (k) { kab[kunci(k)] = k; });
+    IDX = { desa: desa, kec: kec, kab: kab, semua: semua };
+    return IDX;
+  }
+  function idx() { return IDX || bangun(); }
+
+  /** Kamus koreksi petugas: [{ teks, kecamatan, desa }] (desa kosong = alias nama kecamatan). */
+  function pasangAlias(daftar) {
+    ALIAS = (daftar || []).filter(function (a) { return a && a.teks && KECAMATAN.indexOf(a.kecamatan) >= 0; });
+    IDX = null;
+  }
+
+  /** Nama kecamatan rapi dari teks satu nama (ejaan longgar), '' bila bukan kecamatan Pamekasan. */
+  function namaKecamatan(s) {
+    var k = kunci(s), I = idx();
+    if (!k) return '';
+    if (I.kec[k]) return I.kec[k];
+    var terbaik = '', skor = 0;
+    Object.keys(I.kec).forEach(function (x) { var m = mirip(k, x); if (m > skor) { skor = m; terbaik = I.kec[x]; } });
+    return skor >= 0.75 ? terbaik : '';
+  }
+
+  /** Calon desa dari kunci (tepat, lalu mirip ≥ 0.77 dengan huruf depan sama, bila boleh; mis. Pangorayan → Pangurayan). kecDulu = batasi ke kecamatan ini bila ada. */
+  function calonDesa(k, boleMirip, kecDulu) {
+    var I = idx(), tepat = I.desa[k];
+    if (tepat) return { calon: tepat.slice(), tepat: true };
+    if (!boleMirip || k.length < 4) return { calon: [], tepat: false };
+    var skor = 0, hasil = [];
+    I.semua.concat(ALIAS.filter(function (a) { return a.desa; }).map(function (a) { return { kec: a.kecamatan, desa: a.desa, kunci: kunci(a.teks) }; }))
+      .forEach(function (o) {
+        if (kecDulu && o.kec !== kecDulu) return;
+        if (Math.abs(o.kunci.length - k.length) > 3 || o.kunci.charAt(0) !== k.charAt(0)) return; // huruf depan harus sama
+        var m = mirip(k, o.kunci);
+        if (m > skor + 1e-9) { skor = m; hasil = [o]; } else if (Math.abs(m - skor) < 1e-9 && m > 0) hasil.push(o);
+      });
+    return skor >= 0.77 ? { calon: hasil, tepat: false, skor: skor } : { calon: [], tepat: false };
+  }
+
+  var KATA_DESA = { desa: 1, ds: 1, kel: 1, kelurahan: 1 };
+  var KATA_KEC = { kec: 1, kecamatan: 1, kecamtan: 1 };
+  var KATA_KAB = { kab: 1, kabupaten: 1, kota: 1, kabupatan: 1 };
+
+  /**
+   * Cari lokasi di teks bebas (nama paket, alamat). opsi: { abaikanKab } (alamat: kabupaten dibaca dari kolomnya sendiri).
+   * Hasil: { kec, desa, kel, luar, luarNama, kab, cara, yakin, calon: [{kec, desa}] }
+   *   kec = nama kecamatan Pamekasan, 'Luar Pamekasan', atau '' (belum diketahui).
+   */
+  function cari(teks, opsi) {
+    opsi = opsi || {};
+    var I = idx(), w = kataKata(teks), n = w.length, pakai = [], i, j;
+    var hasil = { kec: '', desa: '', kel: false, luar: false, luarNama: '', kab: '', cara: '', yakin: false, calon: [] };
+    for (i = 0; i < n; i++) pakai.push(false);
+    var kk = w.map(kataKunci);
+    var gab = function (a, b) { return kk.slice(a, b).join('').replace(/([a-z])\1+/g, '$1'); };
+    var kecTegas = '', luarKec = '', desaTegas = null, desaBebas = [], kecBebas = [], kabPamekasan = false, kabLuar = '';
+
+    // 1. KAB/KABUPATEN/KOTA X
+    for (i = 0; i < n - 1; i++) {
+      if (!KATA_KAB[w[i]]) continue;
+      if (w[i] === 'kota' && i > 0 && I.desa[gab(i - 1, i + 1)]) continue; // Kel. Barurambat Kota
+      if (kk[i + 1] === kunci('Pamekasan')) { kabPamekasan = true; pakai[i] = pakai[i + 1] = true; continue; }
+      if (!opsi.abaikanKab && I.kab[kk[i + 1]]) { kabLuar = I.kab[kk[i + 1]]; pakai[i] = pakai[i + 1] = true; }
+    }
+    // 2. KEC X (satu atau dua kata)
+    for (i = 0; i < n - 1; i++) {
+      if (!KATA_KEC[w[i]] || pakai[i + 1]) continue;
+      var nk = namaKecamatan(w[i + 1]) || (i + 2 < n ? (I.kec[gab(i + 1, i + 3)] || '') : '');
+      pakai[i] = true;
+      if (nk) { kecTegas = nk; pakai[i + 1] = true; if (I.kec[gab(i + 1, i + 3)] === nk && i + 2 < n && !I.kec[kk[i + 1]]) pakai[i + 2] = true; }
+      else if (/^[a-z]{3,}$/.test(w[i + 1])) { luarKec = w[i + 1].toUpperCase(); pakai[i + 1] = true; }
+    }
+    // 3. DESA/DS/KEL X (1–3 kata, terpanjang dulu; boleh mirip)
+    for (i = 0; i < n - 1 && !desaTegas; i++) {
+      if (!KATA_DESA[w[i]]) continue;
+      for (j = Math.min(n, i + 4); j > i + 1; j--) {
+        var c = calonDesa(gab(i + 1, j), j === i + 2 || j === i + 3, kecTegas);
+        if (!c.calon.length && kecTegas) c = calonDesa(gab(i + 1, j), false, '');
+        if (c.calon.length) { desaTegas = c; for (var t = i; t < j; t++) pakai[t] = true; break; }
+      }
+    }
+    // 4. nama desa tanpa kata DESA (tepat saja; jendela 3, 2, 1 kata)
+    for (var lebar = 3; lebar >= 1; lebar--) {
+      for (i = 0; i + lebar <= n; i++) {
+        var bebas = true;
+        for (j = i; j < i + lebar; j++) if (pakai[j]) bebas = false;
+        if (!bebas) continue;
+        var kd = gab(i, i + lebar);
+        if (kd.length < 4 || !I.desa[kd]) continue;
+        desaBebas.push(I.desa[kd]);
+        for (j = i; j < i + lebar; j++) pakai[j] = true;
+      }
+    }
+    // 5. nama kecamatan tanpa KEC (kecuali "Pamekasan" = kabupaten)
+    for (i = 0; i < n; i++) {
+      if (pakai[i]) continue;
+      var kb = I.kec[kk[i]] || (i + 1 < n && !pakai[i + 1] ? I.kec[gab(i, i + 2)] : '');
+      if (kb && kb !== 'Pamekasan') kecBebas.push(kb);
+      if (!kb && !opsi.abaikanKab && I.kab[kk[i]] && kk[i] !== kunci('Batu') && !kabLuar) kabLuar = I.kab[kk[i]];
+    }
+
+    hasil.kab = kabLuar ? kabLuar : kabPamekasan ? 'Pamekasan' : '';
+    var pilih = function (daftar) {
+      if (!daftar || !daftar.length) return null;
+      if (kecTegas) { var d = daftar.filter(function (o) { return o.kec === kecTegas; }); if (d.length) return d; }
+      return daftar;
+    };
+    var desa = desaTegas ? pilih(desaTegas.calon) : null;
+    if (!desa && desaBebas.length) {
+      // beberapa nama desa: pakai yang sejalan dengan kecamatan tegas, lalu yang pertama
+      var semua = []; desaBebas.forEach(function (d) { semua = semua.concat(d); });
+      desa = pilih(semua);
+      if (desa && !kecTegas) {
+        var kecs = {}; desa.forEach(function (o) { kecs[o.kec] = true; });
+        if (Object.keys(kecs).length > 1) { var p = desaBebas[0]; desa = p; }
+      }
+    }
+    if (kecTegas) {
+      hasil.kec = kecTegas; hasil.cara = 'kecamatan'; hasil.yakin = true;
+      if (desa && desa.length === 1 && desa[0].kec === kecTegas) { hasil.desa = desa[0].desa; hasil.kel = !!desa[0].kel; }
+      return hasil;
+    }
+    if (luarKec && !desaTegas) { hasil.kec = LUAR; hasil.luar = true; hasil.luarNama = 'Kec. ' + judul(luarKec) + (kabLuar ? ', ' + kabLuar : ''); hasil.cara = 'kecamatan'; hasil.yakin = true; return hasil; }
+    if (desa && desa.length) {
+      var kc = {}; desa.forEach(function (o) { kc[o.kec] = true; });
+      if (Object.keys(kc).length === 1) {
+        hasil.kec = desa[0].kec; hasil.desa = desa.length === 1 ? desa[0].desa : ''; hasil.kel = desa.length === 1 && !!desa[0].kel;
+        hasil.cara = desaTegas ? 'desa' : 'nama desa'; hasil.yakin = !!desaTegas && desaTegas.tepat !== false;
+        if (desaTegas && !desaTegas.tepat) hasil.yakin = false;
+        return hasil;
+      }
+      hasil.calon = desa.map(function (o) { return { kec: o.kec, desa: o.desa }; });
+      hasil.cara = 'desa ganda';
+      return hasil;
+    }
+    if (kabLuar) { hasil.kec = LUAR; hasil.luar = true; hasil.luarNama = kabLuar; hasil.cara = 'kabupaten'; hasil.yakin = true; return hasil; }
+    if (kecBebas.length) { hasil.kec = kecBebas[0]; hasil.cara = 'nama kecamatan'; hasil.yakin = false; return hasil; }
+    return hasil;
+  }
+  function judul(s) { return String(s || '').toLowerCase().replace(/(^|\s)([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); }); }
+
+  /** Lokasi kantor dari alamat Data BU + kolom kabupaten. */
+  function dariAlamat(alamat, kabupaten) {
+    var kb = kunci(kabupaten);
+    if (kb && kb.indexOf(kunci('Pamekasan')) < 0) {
+      var nama = idx().kab[kb] || judul(String(kabupaten).replace(/^\s*(kab(upaten)?|kota)\.?\s*/i, ''));
+      return { kec: LUAR, desa: '', kel: false, luar: true, luarNama: nama, kab: nama, cara: 'kabupaten', yakin: true, calon: [] };
+    }
+    return cari(alamat, { abaikanKab: true });
+  }
+
+  /** Kabupaten yang disebut di teks (nama pemilik proyek): 'Pamekasan', nama kabupaten lain, atau ''. */
+  function kabupatenDari(teks) {
+    var w = kataKata(teks), I = idx();
+    for (var i = 0; i < w.length; i++) {
+      var k = kataKunci(w[i]);
+      if (k === kunci('Pamekasan')) return 'Pamekasan';
+      if (I.kab[k] && k !== kunci('Batu')) return I.kab[k];
+      if (k === kunci('Batu') && i > 0 && KATA_KAB[w[i - 1]]) return 'Batu';
+    }
+    return '';
+  }
+
+  function daftarDesa(kec) { return (DESA[kec] || []).concat(KELURAHAN[kec] || []); }
+
+  return { KECAMATAN: KECAMATAN, DESA: DESA, KELURAHAN: KELURAHAN, LUAR: LUAR, TAKTAHU: TAKTAHU, KAB_LAIN: KAB_LAIN,
+    kunci: kunci, mirip: mirip, namaKecamatan: namaKecamatan, cari: cari, dariAlamat: dariAlamat, kabupatenDari: kabupatenDari,
+    pasangAlias: pasangAlias, daftarDesa: daftarDesa };
+})();
+
+/* === kit:jakon === */
+/* =====================================================================
+ *  KitJakon — rumus bersama jasa konstruksi (LENSA Suite Tahap 7, 24 Nov 2026). ES5.
+ *  Dipakai server & aplikasi SIGAP Jakon supaya satu rumus:
+ *   - iuran: simulasi iuran Jakon (JKK + JKM, tarif berlapis Permenaker 5/2021; nilai termasuk PPN ÷ 1,11 = E-Jakon)
+ *   - jenisPekerjaan: 8 kelompok dari nama paket (konsep 24 Nov; kata kunci bisa dikoreksi)
+ *   - lokasiProyek: kecamatan proyek dari nama paket, lalu nama pemilik (kantor kecamatan/kelurahan/desa), lalu kabupaten pemilik
+ *   - pemilik: Pemkab Pamekasan / Pemkab lain / Provinsi / Pusat / Desa / Belum jelas (+ perkiraan)
+ *   - statusIuran: proyek tahun lalu ber-iuran Rp 0 = "Lunas tahun sebelumnya" (Hafidz 24 Nov: semua sudah lunas & berkuitansi,
+ *     laporan proyek aktif hanya memuat iuran tahun berjalan); proyek tahun berjalan Rp 0 = perlu cek.
+ *  Butuh KitWilayah (kit/wilayah-pamekasan.js) untuk lokasi & kabupaten.
+ * ===================================================================== */
+var KitJakon = (function () {
+  var TARIF = [ // [batas atas lapis, tarif JKK, tarif JKM]
+    [100000000, 0.0021, 0.0003], [500000000, 0.0017, 0.0002], [1000000000, 0.0013, 0.0002], [5000000000, 0.0011, 0.0001], [Infinity, 0.0009, 0.0001]];
+  /** Simulasi iuran Jakon dari nilai kontrak. termasukPpn: nilai dibagi 1,11 dulu (seperti E-Jakon). */
+  function iuran(nilai, termasukPpn) {
+    var n = Math.max(0, Number(nilai) || 0), dasar = Math.round(termasukPpn ? n / 1.11 : n), bawah = 0, jkk = 0, jkm = 0, lapis = [];
+    TARIF.forEach(function (t) {
+      var porsi = Math.min(dasar, t[0]) - bawah;
+      if (porsi > 0) { lapis.push({ dari: bawah, sampai: t[0], porsi: porsi, tJkk: t[1], tJkm: t[2], jkk: porsi * t[1], jkm: porsi * t[2] }); jkk += porsi * t[1]; jkm += porsi * t[2]; }
+      bawah = t[0];
+    });
+    jkk = Math.round(jkk); jkm = Math.round(jkm);
+    return { nilai: n, dasar: dasar, jkk: jkk, jkm: jkm, total: jkk + jkm, lapis: lapis };
+  }
+
+  // urutan tampil
+  var URUT_JENIS = ['Jalan & jembatan', 'Saluran & irigasi', 'Talud & bronjong', 'Air bersih & sanitasi', 'Gedung & sarana', 'Rumah & permukiman', 'Perencanaan & pengawasan', 'Lainnya'];
+  // urutan periksa: konsultan dulu, jembatan sebelum sungai, bronjong/talud sebelum saluran, drainase sebelum jalan
+  var JENIS = [
+    ['Perencanaan & pengawasan', /\b(PERENCANAAN|PENGAWASAN|KONSULTAN|KONSULTASI|SUPERVISI|DED|STUDI|MASTER ?PLAN|TENAGA AHLI|FS)\b/],
+    ['Jalan & jembatan', /\bJEMBATAN\b/],
+    ['Talud & bronjong', /\b(TALUD|PLENGSENGAN|BRONJONG|TEMBOK PENAHAN|BREAKWATER|PENGAMAN|PENAHAN|TEBING|PARAPET|ABRASI|BUIS)\b/],
+    ['Air bersih & sanitasi', /\b(SPAM|AIR BERSIH|AIR MINUM|PERPIPAAN|SUMUR|SANITASI|MCK|JAMBAN|IPAL|SEPTIC|PAMSIMAS|HIDRAN)\b/],
+    ['Saluran & irigasi', /\b(DRAINASE|SALURAN|IRIGASI|EMBUNG|DAM|BENDUNG|DIAT|TANGGUL|SUNGAI|WADUK|POMPA AIR|PINTU AIR)\b/],
+    ['Jalan & jembatan', /\b(JALAN|JL|JLN|PAVING|ASPAL|PENGASPALAN|HOTMIX|LAPEN|RABAT|GORONG|TROTOAR)\b/],
+    ['Rumah & permukiman', /\b(RUMAH|RTLH|HUNIAN|BEDAH RUMAH|PERMUKIMAN|PERUMAHAN|KUMUH|KAMPUNG NELAYAN)\b/],
+    ['Gedung & sarana', /\b(GEDUNG|RUANG|KELAS|SEKOLAH|KANTOR|PASAR|MASJID|MUSHOLLA|MUSHOLA|PUSKESMAS|PUSTU|POLINDES|LABORATORIUM|PERPUSTAKAAN|PERPUSTAKAN|TOILET|PAGAR|BALAI|AULA|ASRAMA|LAPANGAN|GOR|STADION|TERMINAL|SMP|SMA|SMK|SD|SDN|MI|MTS|MTSN|MA|MAN|KANOPI|GUDANG|BANGUNAN|TAMAN)\b/]
+  ];
+  function besar(s) { return ' ' + String(s || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim() + ' '; }
+  /** Kelompok jenis pekerjaan dari nama paket. "Rumah pintu" (bangunan air) tidak dihitung rumah. */
+  function jenisPekerjaan(nama) {
+    var n = besar(nama).replace(/ RUMAH (PINTU|POMPA|PENGAMAT|JAGA) /g, ' GEDUNG ');
+    for (var i = 0; i < JENIS.length; i++) if (JENIS[i][1].test(n)) return JENIS[i][0];
+    return 'Lainnya';
+  }
+
+  /** Lokasi proyek: nama paket → nama pemilik (kantor kecamatan/kelurahan/desa/pokmas) → kabupaten pemilik. */
+  function lokasiProyek(namaPaket, pemilik) {
+    var W = KitWilayah, r = W.cari(namaPaket);
+    if (r.kec || r.calon.length) return r;
+    var p = String(pemilik || '');
+    if (/\b(KECAMATAN|KELURAHAN|DESA|POKMAS|PEMDES)\b/i.test(p)) {
+      var q = W.cari(p);
+      if (q.kec && q.kec !== W.LUAR) { q.cara = 'pemilik'; q.yakin = false; return q; }
+    }
+    var kab = W.kabupatenDari(p);
+    if (kab && kab !== 'Pamekasan') return { kec: W.LUAR, desa: '', kel: false, luar: true, luarNama: kab, kab: kab, cara: 'pemilik', yakin: true, calon: [] };
+    if (r.kab && r.kab !== 'Pamekasan') return r;
+    return r;
+  }
+
+  var KATEGORI = ['Pemkab Pamekasan', 'Pemkab lain', 'Provinsi', 'Pusat', 'Desa', 'Belum jelas'];
+  function kunciPemilik(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim(); }
+  /**
+   * Kategori pemilik proyek. o = { pemilik, sumber_dana, kec (lokasi proyek), cocokSirup (paket SIRUP Pemkab), kamus: { kunciPemilik: kategori } }
+   * Hasil { kategori, perkiraan, alasan }.
+   */
+  function pemilik(o) {
+    o = o || {};
+    var nama = kunciPemilik(o.pemilik), n = ' ' + nama + ' ', sd = String(o.sumber_dana || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    var hasil = function (k, perk, alasan) { return { kategori: k, perkiraan: !!perk, alasan: alasan }; };
+    if (o.kamus && o.kamus[nama] && KATEGORI.indexOf(o.kamus[nama]) >= 0) return hasil(o.kamus[nama], false, 'ditandai petugas');
+    if (o.cocokSirup) return hasil('Pemkab Pamekasan', false, 'paket SIRUP Pemkab Pamekasan');
+    if (sd === 'DANADESA' || / (POKMAS|PEMDES|PERANGKAT DESA|PEMERINTAH DESA|BUMDES) /.test(n) || /^DESA /.test(nama)) return hasil('Desa', false, 'dana desa / pemerintah desa');
+    if (sd === 'APBN' || / (KEMENTERIAN|KEMENAG|KANWIL|KANTOR WILAYAH|IMIGRASI|BBWS|BPJN|BALAI BESAR) /.test(n)) return hasil('Pusat', false, sd === 'APBN' ? 'sumber dana APBN' : 'nama instansi pusat');
+    if (sd === 'APBD1' || / (PROVINSI|PEMPROV|PROV) /.test(n) || / PROVINSI[A-Z]* /.test(n)) return hasil('Provinsi', false, sd === 'APBD1' ? 'sumber dana APBD1' : 'nama instansi provinsi');
+    var kab = typeof KitWilayah !== 'undefined' ? KitWilayah.kabupatenDari(o.pemilik) : '';
+    if (kab === 'Pamekasan') return hasil('Pemkab Pamekasan', false, 'APBD2 + pemilik menyebut Pamekasan');
+    if (kab) return hasil('Pemkab lain', false, 'pemilik menyebut ' + kab);
+    if (/^(KECAMATAN|KELURAHAN) /.test(nama) && typeof KitWilayah !== 'undefined') {
+      var w = KitWilayah.cari(o.pemilik);
+      if (w.kec && w.kec !== KitWilayah.LUAR) return hasil('Pemkab Pamekasan', false, 'kantor ' + nama.toLowerCase());
+    }
+    if (o.kec && o.kec !== 'Luar Pamekasan') return hasil('Pemkab Pamekasan', true, 'lokasi proyek di Kec. ' + o.kec);
+    if (o.kec === 'Luar Pamekasan') return hasil('Pemkab lain', true, 'lokasi proyek di luar Pamekasan');
+    return hasil('Belum jelas', false, 'nama pemilik tanpa kabupaten');
+  }
+
+  /**
+   * Status iuran satu proyek. o = { tgl_awal: 'yyyy-mm-dd', nilai_proyek, nilai_iuran }, tahun = tahun laporan.
+   * Hasil { status, kode: 'lalu'|'nol'|'kurang'|'sesuai', simulasi, selisih }.
+   */
+  function statusIuran(o, tahun) {
+    var nilai = Number(o.nilai_proyek) || 0, iur = Number(o.nilai_iuran) || 0, sim = iuran(nilai, true).total;
+    var th = String(o.tgl_awal || '').slice(0, 4);
+    if (!iur) {
+      if (th && tahun && +th < +tahun) return { status: 'Lunas tahun sebelumnya', kode: 'lalu', simulasi: sim, selisih: 0 };
+      return { status: 'Iuran Rp 0 — perlu cek', kode: 'nol', simulasi: sim, selisih: -sim };
+    }
+    var batas = Math.max(2, sim * 0.02);
+    if (iur < sim - batas) return { status: 'Di bawah simulasi', kode: 'kurang', simulasi: sim, selisih: iur - sim };
+    return { status: 'Sesuai', kode: 'sesuai', simulasi: sim, selisih: iur - sim };
+  }
+
+  return { TARIF: TARIF, iuran: iuran, JENIS: JENIS, URUT_JENIS: URUT_JENIS, jenisPekerjaan: jenisPekerjaan, lokasiProyek: lokasiProyek,
+    KATEGORI: KATEGORI, kunciPemilik: kunciPemilik, pemilik: pemilik, statusIuran: statusIuran };
+})();
+
+/* === kit:peta === */
+/* ----------------------------------------------------------------------
+ *  KitPeta — peta 13 kecamatan Kabupaten Pamekasan (LENSA Suite Tahap 6, 23 Nov 2026).
+ *  Batas wilayah dijiplak dari peta BPS Kabupaten Pamekasan yang dikirim Hafidz (watershed per warna isi + garis batas,
+ *  dihaluskan, disederhanakan; alat: kit/alat-peta/peta-tracing.py & peta-svg.py). Hanya bentuk (tanpa angka asli peta). Koordinat
+ *  dalam satuan gambar: lebar 343 × tinggi 444; lx/ly = titik label (titik terdalam wilayah).
+ *  Nama sama dengan KitAnalisa.KECAMATAN. Batas pantai utara Batumarmar & Pasean mengikuti tepi gambar sumber.
+ * ---------------------------------------------------------------------- */
+var KitPeta = {
+  lebar: 343, tinggi: 444,
+  kec: [
+    { nama: "Batumarmar", lx: 164.5, ly: 86.5, d: 'M151.5 7.2 149.2 9.2 141 25 141 29.8 143 36 143.5 40.8 140.5 43.8 138.2 44.2 130.2 50.2 123.8 67.5 120.8 72.5 105.2 78.2 92.2 87.2 91 90 91 96.8 89.5 101.2 90 103.8 91.2 106.5 94.2 109.5 97.8 109.8 100.2 108.8 101 109 102.2 111.5 107.8 117 112.8 116.2 119.2 122.5 121.2 123.5 138.8 124 140 127 140 131.8 141.2 133.5 147.5 138 149 142 149.2 145.5 151.2 147.5 155.2 149 158 151.8 162.8 151.8 170 149.8 177.8 149.8 185 152.8 186.8 152.8 189.2 153.8 190.5 153.5 196.5 150.5 198.5 148.5 205.8 134.8 205.8 129 206.8 126.8 206.8 102 207.8 99.8 207.8 94 208.8 91.8 208.8 87 209.8 84.8 210.2 80.2 209.8 77 205.5 67.2 203 64.5 202.2 62 200.2 60.5 199.8 59.2 203.8 45.8 203.8 43 206.8 31.8 206.8 29 200 17.5 199.8 15 198.5 12.2 196.5 10.2 193 10 190.8 11 170 11 167.8 10 164 10 161.8 9 159 9 156.8 8Z' },
+    { nama: "Galis", lx: 225.5, ly: 328.5, d: 'M229 289.8 223.5 291 221.2 293.8 215.2 292.2 214 292.5 207.2 299.2 206.2 301.2 205.8 311.5 202.5 314.8 200.2 315.8 194.2 313.8 192.2 312.2 191 312.5 189.8 313.8 190 321.8 188.8 323.8 189 325.2 192.5 327 195.2 329.8 195.2 334.5 201.8 341.2 203.8 344.2 204.2 347.5 208.2 350.5 212.5 351 219.5 355 220.2 361.5 223.8 366.2 224.5 368.5 222.8 372.5 218.5 375.8 216.2 376.2 214.8 377.8 214.8 379 219.8 383.2 221.2 386.5 223 387.8 228.5 387.5 240.5 376.5 244 365.2 245.8 361.8 246 359.2 249.8 349.8 249 345.5 250.5 338.2 250 335.5 250.8 333.8 250.8 330 252.2 328 253.5 327.5 256.5 324.5 259 320.2 262 317.8 262 316.8 253 306.5 252.5 304.2 250.5 301.2 243.8 294.5 242.5 294.2 239.5 296.8 236.8 298 235 298 230.2 293.8 230 290.8Z' },
+    { nama: "Kadur", lx: 220.5, ly: 235.5, d: 'M188.2 182.2 188.2 186.5 195 199 195 200.8 194 203 194 208.8 193 211 191.8 217.5 190.2 219.8 183.8 222 175 222 173 224 173 225.8 170 233 170 238.8 171 241 171.5 245.2 169 251.2 170 254 170 257.8 167.8 260.8 168 262.2 172.2 265.5 180.8 265.8 183 266.8 192.8 266.8 194.5 265.5 197 258.2 199.2 255.8 202.2 253.8 203.8 254.2 211.2 260.5 213.5 261 214.8 262 216 262 223 257.8 225.8 257.8 232 259.8 235.8 259.8 238.2 260.5 244 254.8 243.2 253.2 241.2 252.2 241.5 250.2 248 245 250 246.2 249.2 249.2 251.5 251.5 253.8 251.2 257 247.5 258 247.5 259.8 249.2 260 252.8 261 255 261 257.8 262 260 262 262.8 263 265 263.2 269.5 270.8 279 274.5 278.5 280.2 273 290.2 268.8 293.2 269.8 299.5 266.5 303.2 263 307.2 260.8 307.8 259.8 307.8 254 306.8 251.8 306.5 244.2 303.5 240.2 300 237.5 298.5 234.2 293 228.5 292.5 227.2 290 225.2 286.5 220.2 282.5 217.2 280.2 216.8 275.2 213.8 271.5 210.2 263 210 260.8 209 255 209 250.2 206.2 249 206.5 244.2 211.5 244.5 212.8 247.5 215 247.8 216.2 243.8 220 240 220 236.2 218.8 229.5 213.2 222.8 211 219 211 212.5 213.8 207.5 209.8 206.8 208.5 206.8 205 208.2 201.2 206.5 195.2 203.5 191.2 201 188.8 196.2 185.8 191.8 180.5 190.5 180.2Z' },
+    { nama: "Larangan", lx: 194.5, ly: 285.5, d: 'M293.5 271.5 291.8 269.5 289.2 269.2 280.2 273.2 278.2 275.8 274.5 278.8 270.5 279.5 263 269.5 262.8 265 261.8 262.8 261.8 260 260.8 257.8 260.8 255 259.8 252.8 259.2 249 258 247.8 257 247.8 253.8 251.5 252.2 252 249.2 249.8 249.5 246.5 248.8 245.8 247.8 245.8 241.8 250.8 242 252.2 244 253.5 244.2 255 238.2 260.8 235.8 260 232 260 225.8 258 223 258 216 262.2 214.8 262.2 213.5 261.2 211.2 260.8 203.8 254.5 202.2 254 201 254.5 197.2 258.2 194.8 265.5 192.8 267 183 267 180.8 266 173.2 266.2 164.2 275.2 162.2 278.5 163.2 284 159.2 289.2 159 296.8 161.2 299.5 164.2 300.5 170.2 295 172.8 294.8 174.5 295.5 177 295.5 180.2 298 181.8 300.2 181.8 309.5 185.2 313.5 188.8 313.8 192.2 312 194.2 313.5 200.2 315.5 202.5 314.5 205.5 311.5 206 301.2 207 299.2 213 292.2 214.5 291.8 217.2 292.8 220 292.5 221.8 293 223.5 290.2 226.2 290.5 228.5 289 229.5 289 230.5 290.2 230.5 293.8 234.2 297.5 237.5 297.5 242 294.2 243.8 294.2 250.8 301.2 252.8 304.2 253.2 306.5 256.2 310.5 261 315.2 262.5 315.8 263.8 315.2 275.5 303.5 279.5 298.5 285.5 288.5 286 286.2 287.5 284.5 288 282.2 290.5 278.5 291 276.2Z' },
+    { nama: "Pademawu", lx: 182.5, ly: 390.5, d: 'M171 295 164.2 301.2 163.5 308.8 161.2 310.2 158.2 313.2 157.8 314.5 150.2 321.2 150 323.8 150.8 326.2 148.5 330.5 144.5 332.8 141 333.5 140.2 335.2 141.2 337.8 137.8 340 137.8 341 139.8 343.2 140.5 346.8 143.5 349 145.2 352.5 147.2 353.2 151.5 353 153.5 354 155.8 356.2 157 360 157 366 155.5 367.2 151.2 364.2 149.8 364.5 147.5 366 146.8 369.5 145 372.2 146 375.2 145.8 376.2 144.2 378.2 143.8 381.5 139.8 388.2 139.8 390 142.8 393.5 142.5 394.8 140.2 397.2 140 401.8 137.8 404 135 404 132 405.5 130.8 411 133 412.8 141.8 413.8 152 417.8 169.8 421.8 174.5 424 179.2 427.5 181.5 428 185.8 432.2 190.2 441.5 192.2 442.5 202.5 432.5 203.8 429.8 204.2 424.2 205.8 422.5 210.8 422.8 213 423.8 217.8 423.8 219.5 424.5 220.8 424.2 222.5 422.5 227 411.2 229.5 407.5 230.8 403.8 230.8 398 229.8 395.8 229.8 391 227.5 388.2 221.8 387.8 219.5 383.2 217.2 381.8 214 378 215.2 376.5 218.5 375.5 221.5 373.5 224.2 368.5 223.5 366.2 220 361.5 219.2 355 212.5 351.2 209 351 204.2 348.5 203.5 344.2 201.5 341.2 199 339.2 195 334.5 195 329.8 192.5 327.2 188.5 324.8 189.8 321.8 189.8 316 188.8 314.5 185.2 313.8 182 310.5 181.2 308.5 181.8 306.8 181.5 300.2 177 295.8Z' },
+    { nama: "Pakong", lx: 232.5, ly: 188.5, d: 'M289.5 190.2 288.8 188.5 286.2 187.8 283.5 185.2 280.8 184 268 184 265.2 186.2 262.8 190.5 260.5 192.8 259.5 193 258.8 192 258.8 181 259.8 178.8 259.8 163 258.2 161.2 255.8 162 244 162 241.8 163 236 163 228.8 165 224 165 218.5 162.2 215.5 161.5 212 162 207.8 164 196 164 193.5 164.8 189.5 163.2 188 165 188 168.8 192.2 180.5 195.2 184.5 200.5 188 206.8 195.2 208.5 201.2 207 205 207 207.8 212.5 213.5 219 210.8 222.8 210.8 229.5 213 236.2 218.5 240 219.8 243.8 219.8 247.5 216.2 247.2 215 244.2 212.8 244 211.5 249.5 206 251 206.2 255 208.8 260.8 208.8 263 209.8 270.8 209.8 272.8 211 274 211 277.5 207.5 278 205.2Z' },
+    { nama: "Palengaan", lx: 75.5, ly: 225.5, d: 'M84 136.8 81 140.5 67.2 154.2 66 157 66 163.8 65.2 165 60 165 57.8 164 56 164 54.5 165 51.2 172.2 49.8 177.5 48.2 179.2 43.8 192.5 42 196 42 202.8 44.8 209.2 44.8 211.2 34.5 224 32.5 225.8 27 226.5 26 228 26 229.8 27.8 232 33.8 231.8 37.5 234 39.2 241.5 41.8 245.2 43.2 249.5 46.2 254.5 50 258.2 51.5 258.8 54.2 257 56.8 256.8 61.8 261.2 63 264 63.2 270.5 66.8 275.2 68.2 278.5 71.2 281.5 75 282 77 280 77.8 276.8 77.8 270 76.8 267.5 77.8 266 79.5 265.5 81 264 81.5 261.8 84 258.2 88.8 257.8 92 259.8 94.8 259.8 97 258.8 102.8 258.8 105 261 105 271.8 103.2 277.5 104.2 282.5 109.2 287.5 112.2 288.5 115.5 285.5 116.5 283.2 116.2 281.2 117 279.5 118.2 278.8 121 278.5 122.8 280.2 125.2 284.8 125.2 287.2 128.2 294.2 128.8 297 131.2 299.5 135.5 301.8 137.5 301 141.2 301.5 147.5 295.5 148 293.2 151.5 289.5 152.2 287.5 151.8 285 152.5 282.5 151.8 280.8 151.2 275.2 148.2 272.5 147.5 270.2 146 268.5 145.5 266.2 141 260.5 140.5 258.2 137.8 256 132.5 256 131.2 255.2 131.2 254.5 134.5 251.5 139.8 244.8 139.5 225.2 137.5 223.2 135.2 222.8 131.5 220.8 127.8 220.5 124.5 218.2 122 218 119.5 216.8 118 214.5 117.5 212.2 115.2 209 107.2 208.8 104 205.5 102.2 198 99.2 196.8 95.2 193.5 93.8 189.8 93.8 182 92.8 179.8 92.8 177 91.8 174.8 91.8 171 90.8 168.8 90.8 160 92.8 154.8 92.8 150.2 95.2 147.8 95.8 145 93.8 141.5 88.2 139.8 85 136.8Z' },
+    { nama: "Pamekasan", lx: 130.5, ly: 319.5, d: 'M161.8 279.5 157 279 154.5 278 152.5 279 152 280.2 152.8 282.5 152 285.2 152.2 288.5 150.8 291.2 148.5 293 147.8 295.5 145.8 298.2 141.8 301.5 140.2 302 137.5 301.2 135.2 302 129 297.8 127.2 297.8 123.2 300.2 117.5 307.5 112.2 310.2 109.5 313.5 108.2 314 105.2 313 103.5 314 102.2 320.2 104 323.5 102.2 326.2 100.8 330.5 98.5 333 98.2 334.2 101.8 337.2 103 340.5 101.2 343.5 101.2 345.5 103.8 349.2 105.2 354.5 107.2 356.5 113.5 357 117.2 360.5 122.2 362.2 124.5 361.5 127.2 358.8 136.8 358.8 140 360.8 143.8 360.8 146 359.8 147.8 359.8 149.8 361.2 150.2 362.5 154 366.2 155.2 366.5 156.8 364.8 156.8 360 155.5 356.2 151.5 353.2 147.2 353.5 145.2 352.8 144.2 351.8 143.2 349 140 347 139.5 343.2 137 340.8 137 340 141 337.8 140 335.2 141 333.2 144.5 332.5 148.5 329.5 149 327.2 150 326 150 321.2 157.5 314.5 158.5 312 162.5 309.5 163.8 307.8 163.8 302 158.8 296.8 158.8 290 163 284 162.8 281Z' },
+    { nama: "Pasean", lx: 290.5, ly: 41.5, d: 'M342.8 39 341.5 36.2 339.8 35 337 35 334.8 36 331 36 328.5 36.8 326.8 34.8 326.8 33 329.8 22.8 329.8 18 334.8 8.8 334.5 2.2 331.8 0 329 0 321.8 2 318 2 312.8 4 308 4 305.5 5 302.8 4 298 4 295.8 3 288 3 285.8 4 280 4 277.8 5 268 5 265.8 6 260 6 257.8 7 250 7 247.8 8 239 8 236.8 9 225 9 222.8 8 215 8 212.8 9 202 9 198.8 11 200.2 17.5 207 29 207 31.8 204 43 204 48.2 205 48.8 211.8 48.8 214 47.8 217.8 47.8 220 46.8 233.8 46.8 236 45.8 238.8 45.8 241 46.8 246.8 46.8 250 45.5 252.2 45.8 254 49 254 59.8 251.2 66.2 253.8 69.2 254.2 71.5 256.2 73.5 258.5 74 264.5 80 264.8 81.2 262 85 262.5 88.8 268.2 92 271.2 96.5 276.2 100.5 281.8 100.8 283.8 102.2 285 105 285.2 108.5 290.8 114.5 290.5 118.8 293.2 121.5 295.8 123 297.2 122.8 299.2 118.5 298.8 113 296.8 106.8 296.8 102.2 297.2 101.2 307.2 97 310.5 96.5 312.2 94.8 312.8 93.2 311.8 90.8 311.8 86 317.5 74.5 318 68.2 323 62.2 324.5 61.8 327.2 62.5 329.5 60.5 329.8 54 330.5 52.2 342.5 41.5Z' },
+    { nama: "Pegantenan", lx: 150.5, ly: 188.5, d: 'M88 102.8 84.2 108.5 85 112.8 87 118 87 123.8 88.8 128.5 85.2 136.2 88.2 139.5 93.8 141.2 96 145 95.8 147.5 93.2 150.2 93 154.8 91 160 91 168.8 92 171 92 174.8 94 182 94.2 190.5 95.2 192.5 99.2 196.5 101.5 196.8 102.8 197.8 103 201.8 104.2 205.5 107.2 208.5 115.2 208.8 117.8 212.2 118.2 214.5 121.2 217.5 124.5 218 127.8 220.2 131.5 220.5 135.2 222.5 137.5 223 139.8 225.2 140 245.5 135.2 250.2 132.8 253.8 132.8 254.8 134 255.8 138.5 256 140.8 258.2 142.8 261.2 143.2 263.5 145.8 266.2 146.2 268.5 151.2 274.8 152 277.2 157 278.8 161.5 278.5 171.5 267.2 170.5 264.2 167.8 262.2 167.5 260.8 169.8 257.8 169.8 254 168.8 251.2 171.2 245.5 170.8 241 169.8 238.8 169.8 233 172.5 226.5 172.8 224 175 221.8 183.8 221.8 188.5 220.5 191.5 217.5 192.8 211 193.8 208.8 193.8 203 194.8 200.8 194.8 199 187.8 185.8 187.8 183 190.5 179.5 190.8 176 187.8 168.8 187.8 164 186.2 160.5 186.8 158.2 185.5 154.2 183.5 152.2 177.8 150 170 150 162.8 152 157.2 152 156.2 151.5 153.5 148.2 150 147.2 148.8 144.8 148.8 142 147.2 138 143.2 135.8 140 132.5 139.8 127 137.5 124.2 121.2 123.8 119.2 122.8 112.5 116.8 111.2 116.5 108.2 117.8 107.5 117.5 100.8 109.5 95 110 93.2 109.2 91.5 107.5 89.2 103Z' },
+    { nama: "Proppo", lx: 52.5, ly: 308.5, d: 'M30 232 28.2 233.5 29 236 28.8 238.5 25.5 241.8 24.2 242.2 17.5 248.8 14.8 250 12 250 9.8 251 8 251 6 253 6 254.8 5 257 5 260.8 11.2 266.8 11.2 268.8 9 276 9 287.8 10 290 10 292.8 0.2 304.5 5.5 317.8 7.5 318 12 314.2 13.2 314 15 314.8 18.5 315 20.8 317.2 21 337.8 25 344.2 26 344.8 33.8 344.8 35.5 343.5 37 341.2 41.2 340 45.5 341 54.5 346 57.2 348.5 61.5 350 67.2 353.5 74.5 353.8 78 356.8 82.5 356.5 84.5 354.5 87 347.2 90.5 343.2 90.2 342 86 337.5 84.8 333.5 85.5 331.2 86.8 330 90.2 330 92.2 331 94 333.2 96.8 333.8 100.5 330.5 102 326.2 103.8 323.5 102 320.2 103.2 314 105.2 312.8 107.5 313.5 108.8 313.2 112.2 310 116.5 307.5 121.5 302.5 122 301.2 128 296 128 294.2 125 287.2 125 284.8 122.5 280.2 121 278.8 119.2 278.8 116.8 280.8 116.8 283.2 115.8 285.5 112.8 288.5 111.5 288.8 108.2 287.5 104 282.5 103 278.2 104.8 271.8 104.8 261 104.2 260 102.8 259 97 259 94.8 260 92 260 88.8 258 84 258.5 81.8 261.8 81.2 264 77.5 267 78 276.8 77.2 280 75 282.2 71.2 281.8 68 278.5 66.5 275.2 63 270.5 62.8 264 59.5 259.2 56.8 257 54.2 257.2 51.5 259 48.2 257 43 250.5 42.5 247.2 39 241.5 37.2 234 33.8 232Z' },
+    { nama: "Tlanakan", lx: 93.5, ly: 381.5, d: 'M149.8 362.2 149.2 361 147.8 360 146 360 143.8 361 140 361 136.8 359 128 359 124.5 361.8 122.2 362.5 117.2 360.8 113.5 357.2 107.2 356.8 104.5 354.2 103.5 349.2 101 345.5 101 343.5 102.8 340.5 101.5 337.2 96.5 334.2 94.2 333.8 90.8 330.5 89 330.2 86.8 330.8 85 333.5 86.2 337.5 90.5 342 90.8 343.2 87.2 347.2 84.8 354.5 82.5 356.8 78 357 73.8 354 67.2 353.8 65.5 352.2 57.2 348.8 54.5 346.2 45.5 341.2 40.5 340.2 37 341.5 35.8 343.5 33.8 345 27 345 24.2 347.2 22.8 356.5 20.8 360.5 16.2 365.2 15.2 367.2 14 372 14 374.8 17.8 379.2 18 387.8 19.2 390.5 21.2 391.8 22.8 391.2 23.8 389.8 23.8 379 24.8 376.8 24.8 374 27.5 366.8 29 366.5 31.5 368.2 32 369.2 32 373.8 34.2 376.5 42.5 376.8 43.8 377.8 43.8 379.5 41.8 385.5 40 388 40 398.8 39.2 401.2 41.2 403.5 49.8 403.8 52 404.8 64.8 404.8 68.5 406 70.2 407.5 73.5 408 79 410.8 85.8 410.8 91 408.8 93.8 408.8 96 407.8 97.8 407.8 100 408.8 103.8 408.8 111 410.8 115.8 410.8 118 411.8 123.8 411.8 126 412.8 127.8 412.8 129.5 411.5 131.2 408.8 132 405.2 135 403.8 137.8 403.8 139.8 401.8 139.8 398 142.2 394.8 142.5 393.5 139.5 390 139.5 388.2 143.5 381.5 144 378.2 145.8 375.5 144.8 372.2 146.5 369.5 147 366.2 149.2 363.8Z' },
+    { nama: "Waru", lx: 244.5, ly: 123.5, d: 'M252.2 46 250 45.8 246.8 47 241 47 238.8 46 236 46 233.8 47 220 47 217.8 48 214 48 211.8 49 205 49 202.2 51.2 200.2 59.2 204.8 65.2 207.8 71.2 210 77 210.5 80.2 210 84.8 209 87 209 91.8 208 94 208 99.8 207 102 207 126.8 206 129 206 134.8 203.8 140.5 201.2 143.2 200.8 145.5 198.8 148.5 196.5 150.8 190.5 153.8 186.5 154 186 155.5 187 158 186.8 161 188.2 162.5 194.2 164.5 196 163.8 207.8 163.8 212 161.8 215.5 161.2 218.5 162 224 164.8 228.8 164.8 236 162.8 241.8 162.8 244 161.8 255.8 161.8 257.5 161 260.2 161.5 273.8 158.2 274.5 155.8 273.8 152.2 274.2 151 276 149.8 283 149.5 288 151.8 293.8 152.8 299.5 150.5 302.2 148.8 302.8 147.2 301.5 144.2 298.5 141.2 295.2 140.2 293.8 138.5 293.8 136 294.8 133.8 294.8 130 296.5 124.5 290.2 118.8 290.5 114.5 285 108.5 284.8 105 283.5 102.2 281.8 101 276.2 101 275.2 100.5 265.5 90.2 264 90 262.2 88.8 261.8 85 264.2 81.8 264.2 80 258.5 74.2 256.2 73.8 254 71.5 253.2 69 251 67 251 65.5 252.5 63.5 253.8 59.8 253.8 49Z' }
+  ]
+};
+
 /* === 20-simpan.js === */
 /* ----------------------------------------------------------------------
  *  SIGAP Jakon 2.0 · penyimpanan di perangkat (IndexedDB "sigap_jakon", cadangan memori) + PIN pilihan (kit/sandi.js).
  *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
  *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
  * ---------------------------------------------------------------------- */
-var VERSI_APP = '2.2.0'; // 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
+var VERSI_APP = '2.3.0'; // 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
 var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
 var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
 
@@ -670,6 +2361,7 @@ function tampilOwner() {
     ['cv', 'CV/PT', ownerCv],
     ['proyek', 'Proyek', ownerProyek],
     ['peta', 'Peta', tabPeta, (d.lokasi || []).filter(function (l) { return l.Status === 'Belum dicek'; }).length || ''],
+    ['panas', 'Peta panas', tabPanas], // 2.3.0 (Tahap 7)
     ['peng', 'Pengajuan', ownerPengajuan, nPeng || ''],
     S.me.peranSuite === 'Pemilik' ? ['user', 'Akses', ownerAkses, d.akses.length || ''] : null,
     ['data', 'Data', ownerData],
@@ -691,6 +2383,7 @@ function ownerRingkasan(el) {
   var kpi = function (n, l, cls, go) { return '<div class="kpi ' + (cls || '') + (go ? ' klik' : '') + '" ' + (go ? 'data-go="' + go + '"' : '') + '><div class="n">' + n + '</div><div class="l">' + esc(l) + '</div></div>'; };
   el.innerHTML = '<div class="baris"><h2>Ringkasan</h2><span class="sp"></span><button class="btn utama" id="bSinkron">Tarik & sinkron sekarang</button></div>' + kartuInaproc(true) +
     '<h3>CV/PT jasa konstruksi</h3><div class="grid">' + kpi(d.cv.length, 'Total CV/PT', '', 'cv') + kpi(st['Terdaftar aktif'] || 0, 'Terdaftar aktif', 'hijau', 'cv:Terdaftar aktif') + kpi(st['Menunggak'] || 0, 'Menunggak', 'merah', 'cv:Menunggak') + kpi(st['Nonaktif'] || 0, 'Nonaktif', '', 'cv:Nonaktif') + kpi(st['Belum terdaftar / perlu cek'] || 0, 'Belum terdaftar / perlu cek', 'oranye', 'cv:Belum terdaftar / perlu cek') + '</div>' +
+    blokRingkasJakon() + // 2.3.0 (Tahap 7)
     '<h3>Proyek konstruksi (INAPROC + laporan CV)</h3><div class="grid">' + kpi(d.paket.length, 'Paket konstruksi', '', 'proyek') + kpi(d.paket.length - berpemenang.length, 'Rencana, belum ada pemenang') + kpi(berpemenang.length, 'Sudah ada pemenang', 'biru') + kpi(real, 'Terealisasi (berjalan s.d. selesai)', 'hijau') + kpi(tunda, 'Ditunda', 'oranye') + kpi(masalah.length, 'Pemenang bermasalah', 'merah', 'proyek:masalah') + '</div>' +
     '<h3>Antrean</h3><div class="grid">' + kpi(d.pengajuan.filter(function (p) { return p.Status === 'Diajukan'; }).length, 'Pengajuan menunggu verifikasi', 'biru', 'peng') + (S.me.peranSuite === 'Pemilik' ? kpi(d.akses.length, 'Permintaan akses', '', 'user') : '') + kpi(mirip.length, 'Nama pemenang perlu dicek', 'oranye', 'proyek:mirip') + '</div>' +
     '<h3>Prioritas tindak lanjut: pemenang yang menunggak / nonaktif / belum terdaftar</h3><div id="prio"></div>';
@@ -705,6 +2398,7 @@ function ownerRingkasan(el) {
     [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return chip(r.StatusPemkab); }, 'Status proyek'],
     [function (r) { return r.KontakCV ? '<a class="btn wa kecil" target="_blank" href="' + esc(waLink(r.KontakCV, pesanTagih(r))) + '" onclick="event.stopPropagation()">WA</a>' : ''; }, '']
   ], { id: 'prio', klik: detailPaket, csv: 'prioritas-tindak-lanjut', kosong: 'Tidak ada pemenang bermasalah. Mantap!' });
+  pasangRingkasJakon(el);
 }
 
 function pesanTagih(p) {
@@ -729,16 +2423,19 @@ function sinkronDanTampil(btn) {
 function ownerCv(el) {
   var d = S.d, st = hitung(d.cv, function (c) { return c.Status; });
   var nPaket = hitung(d.paket.filter(function (p) { return p.CV_ID; }), function (p) { return p.CV_ID; });
-  el.innerHTML = '<div class="baris"><h2>CV/PT jasa konstruksi</h2><span class="sp"></span><button class="btn" id="bTambahCv">+ Tambah manual</button></div><div class="filters" id="fCv"></div><div id="tCv"></div>';
+  el.innerHTML = '<div class="baris"><h2>CV/PT jasa konstruksi</h2><span class="sp"></span><button class="btn" id="bTambahCv">+ Tambah manual</button></div><div class="filters" id="fCv"></div><div class="filters" id="fCvPj"></div><div id="tCv"></div>';
+  var idxPj = indeksPj(), stPj = hitung(d.cv, statusProyekCv); // 2.3.0 (Tahap 7): status proyek Jakon per CV
   var render = function () {
-    var f = S.f.cvSt || 'Semua';
-    var rows = d.cv.filter(function (c) { return f === 'Semua' || c.Status === f; }).map(function (c) { c._paket = nPaket[c.ID] || 0; return c; });
+    var f = S.f.cvSt || 'Semua', fp = S.f.cvPj || 'Semua proyek';
+    var rows = d.cv.filter(function (c) { return (f === 'Semua' || c.Status === f) && (fp === 'Semua proyek' || statusProyekCv(c) === fp); }).map(function (c) { c._paket = nPaket[c.ID] || 0; c._pj = idxPj[c.ID] ? idxPj[c.ID].aktif.length : 0; c._stPj = statusProyekCv(c); return c; });
     rows.sort(function (a, b) { return b._paket - a._paket || String(a.Nama).localeCompare(b.Nama); });
     tabel($('#tCv'), rows, [['Nama', 'Nama'], ['NPP', 'NPP'], [function (r) { return chip(r.Status) + (r.StatusManual ? ' <span class="muted">(manual)</span>' : ''); }, 'Status'],
-      [function (r) { return r.BulanTunggak === '' || r.BulanTunggak == null ? '-' : esc(r.BulanTunggak); }, 'Bln tunggak', 'num'], [function (r) { return r._paket || '-'; }, 'Paket', 'num'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Sumber', 'Sumber']],
-      { id: 'cv', klik: detailCv, csv: 'cv-jakon', csvKolom: [['Nama', 'Nama'], ['NPP', 'NPP'], ['Status', 'Status'], ['BulanTunggak', 'Bulan tunggak'], ['NominalTunggak', 'Nominal'], ['_paket', 'Jumlah paket'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Kontak', 'Kontak'], ['PelaksanaNama', 'Pelaksana'], ['PelaksanaHP', 'HP pelaksana'], ['AdminNama', 'Admin'], ['AdminHP', 'HP admin'], ['DirekturNama', 'Direktur'], ['DirekturHP', 'HP direktur'], ['Alamat', 'Alamat'], ['Catatan', 'Catatan']] });
+      [function (r) { return r.BulanTunggak === '' || r.BulanTunggak == null ? '-' : esc(r.BulanTunggak); }, 'Bln tunggak', 'num'], [function (r) { return r._paket || '-'; }, 'Paket', 'num'],
+      [function (r) { return chipProyek(r._stPj) + (r._pj ? ' <span class="muted">' + r._pj + '</span>' : ''); }, 'Proyek Jakon'], ['KecKantor', 'Kec. kantor'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Sumber', 'Sumber']],
+      { id: 'cv', klik: detailCv, csv: 'cv-jakon', csvKolom: [['Nama', 'Nama'], ['NPP', 'NPP'], ['Status', 'Status'], ['BulanTunggak', 'Bulan tunggak'], ['NominalTunggak', 'Nominal'], ['_paket', 'Jumlah paket'], ['_stPj', 'Proyek Jakon'], ['_pj', 'Proyek Jakon aktif'], ['KecKantor', 'Kecamatan kantor'], ['DesaKantor', 'Desa kantor'], ['DiLENSA', 'Di data KC'], ['Pembina', 'Pembina'], ['Kontak', 'Kontak'], ['PelaksanaNama', 'Pelaksana'], ['PelaksanaHP', 'HP pelaksana'], ['AdminNama', 'Admin'], ['AdminHP', 'HP admin'], ['DirekturNama', 'Direktur'], ['DirekturHP', 'HP direktur'], ['Alamat', 'Alamat'], ['Catatan', 'Catatan']] });
   };
   filterChips($('#fCv'), 'cvSt', [['Semua', d.cv.length]].concat(STATUS_CV.map(function (s) { return [s, st[s] || 0]; })), render);
+  filterChips($('#fCvPj'), 'cvPj', [['Semua proyek', d.cv.length]].concat(STATUS_PROYEK_CV.map(function (s) { return [s, stPj[s] || 0]; })), render);
   render();
   $('#bTambahCv').onclick = function () { detailCv({}); };
 }
@@ -754,12 +2451,13 @@ function detailCv(c) {
     '<label class="f">Alamat</label><input type="text" id="cAlamat" value="' + esc(c.Alamat || '') + '">' +
     '<label class="f">Status manual <small>(mengalahkan status otomatis; kosongkan untuk ikut data KC)</small></label><select id="cStatus"><option value="">— ikut status otomatis —</option>' + STATUS_CV.concat(['Terdaftar – binaan pembina lain']).map(function (s) { return '<option ' + (c.StatusManual === s ? 'selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select>' +
     '<label class="f">Catatan</label><textarea id="cCat">' + esc(c.Catatan || '') + '</textarea>' +
-    (baru ? '' : '<h3>Lokasi kantor</h3><div id="cLok"></div>') +
+    (baru ? '' : blokCvJakon(c) + '<h3>Lokasi kantor</h3><div id="cLok"></div>') + // 2.3.0: proyek Jakon & kecamatan kantor
     (paket.length ? '<h3>Paket (' + paket.length + ')</h3>' + paket.map(function (p) { return '<div class="muted">• ' + esc(p.NamaPaket) + ' — ' + jt(p.NilaiKontrak || p.Pagu) + ' ' + chip(p.StatusPemkab) + '</div>'; }).join('') : '') +
     (users.length ? '<h3>Pengguna terhubung</h3>' + users.map(function (u) { return '<div class="muted">• ' + esc(u.Nama) + ' (' + esc(u.ID) + ') ' + esc(u.NoHP) + '</div>'; }).join('') : '') +
     '<div class="aksi">' + (c.Kontak ? '<a class="btn wa" target="_blank" href="' + esc(waLink(c.Kontak, 'Halo, kami dari BPJS Ketenagakerjaan KC Pamekasan 👋 terkait kepesertaan ' + c.Nama + '.')) + '">WhatsApp</a>' : '') +
     '<button class="btn" data-tutup>Tutup</button><button class="btn utama" id="cSimpan">Simpan</button></div>', function (bg) {
       if (!baru) pasangLokasi($('#cLok', bg), 'Kantor', c, { peta: true });
+      if (!baru) pasangCvJakon(bg, c);
       $('#cSimpan', bg).onclick = function () {
         var a = Object.assign({ id: c.ID, NPP: $('#cNpp', bg).value, Kontak: $('#cKontak', bg).value, Alamat: $('#cAlamat', bg).value, StatusManual: $('#cStatus', bg).value, Catatan: $('#cCat', bg).value }, ambilKontakCv(bg));
         if (baru) { a.Nama = $('#cNama', bg).value; if (!a.Nama) return toast('Isi nama', true); }
@@ -769,6 +2467,7 @@ function detailCv(c) {
 }
 
 function ownerProyek(el) {
+  if (S.f.pkMode === 'jakon') return ownerProyekJakon(el); // 2.3.0 (Tahap 7)
   var d = S.d;
   el.innerHTML = '<h2>Proyek konstruksi</h2><div class="filters" id="fPk"></div><div class="filters" id="fPk2"></div><div id="tPk"></div>';
   var opsi = ['Semua', 'Bermasalah', 'Nama perlu dicek', 'Belum ada pemenang', 'Ada pemenang'];
@@ -790,6 +2489,7 @@ function ownerProyek(el) {
   filterChips($('#fPk'), 'pkFil', opsi, render);
   filterChips($('#fPk2'), 'pkSt', ['Semua status'].concat(S.d.info.statusPemkab), render);
   render();
+  pilihModeProyek(el);
 }
 
 function formTandai(p, stAwal) {
@@ -874,7 +2574,7 @@ function ownerSetelan(el) {
    PEMKAB
    ============================================================ */
 function tampilPemkab() {
-  kerangka([['rekap', 'Rekap', pemkabRekap], ['proyek', 'Proyek', pemkabProyek], ['peta', 'Peta', tabPeta], ['cv', 'Status CV', pemkabCv]]);
+  kerangka([['rekap', 'Rekap', pemkabRekap], ['proyek', 'Proyek', pemkabProyek], ['peta', 'Peta', tabPeta], ['panas', 'Peta panas', tabPanas], ['cv', 'Status CV', pemkabCv]]);
 }
 
 /** 2.0.1: status yang dihitung "terealisasi" (proyek sudah jalan). */
@@ -1032,12 +2732,14 @@ function jakonBeranda(el) {
         '<div class="lok-kartu"><b>Lokasi kantor</b><div data-lokcv="' + i + '"></div></div></div>';
     }).join('') +
     '<h3>Proyek perusahaan Anda</h3><p class="muted" style="margin-top:-6px">Klik proyek untuk melihat rinciannya dan mengajukan pendaftaran proyek.</p><div id="tJp"></div>' +
+    blokMitraJakon() + // 2.3.0
     '<div class="info">Tidak sedang ada proyek? Ajukan <b>penonaktifan</b> lewat menu Ajukan: surat dan berita acara sudah terisi otomatis. Begitu dapat proyek lagi, <b>daftarkan proyeknya</b> (NPP, penanggung jawab, SPK, SPMK) dan kepesertaan aktif kembali.</div>' +
     (d.info.wa ? '<a class="btn wa" target="_blank" href="' + esc(waLink(d.info.wa, pesanTanyaPembina())) + '">Tanya pembina lewat WA</a>' : '');
   $$('[data-kontak]', el).forEach(function (b) { b.onclick = function () { ubahKontakCv(d.cv[+b.dataset.kontak]); }; });
   $$('[data-lokcv]', el).forEach(function (w) { pasangLokasi(w, 'Kantor', d.cv[+w.dataset.lokcv]); });
   tabel($('#tJp'), d.paket, [[function (r) { return esc(r.KodeRUP || '-'); }, 'Kode RUP'], ['NamaPaket', 'Paket', 'judul-hp'], ['Satker', 'Pemilik'], [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return chip(statusJakonPaket(r)); }, 'Jakon']],
     { id: 'jp', hp: 1, klik: detailProyekMitra, kosong: 'Belum ada proyek tercatat atas nama perusahaan Anda' });
+  pasangMitraJakon(el);
 }
 
 /** 2.0.3: pesan WA ke pembina menyebut perusahaan (nama + NPP) agar pembina langsung tahu. */
@@ -1478,7 +3180,7 @@ function kartuInaproc(ringkas) {
 
 function ownerData(el) {
   var d = S.d;
-  el.innerHTML = '<h2>Data & sinkron</h2>' + kartuInaproc(false) +
+  el.innerHTML = '<h2>Data & sinkron</h2>' + kartuUnggahJakon() + kartuInaproc(false) +
     '<div class="kartu"><b>Unggah CSV / Excel</b><p class="muted">Bisa pilih beberapa file sekaligus (RUP + Realisasi). File RUP diproses lebih dulu.</p>' +
     '<div class="baris"><input type="file" id="dFile" accept=".csv,.xlsx,.xls" multiple style="flex:1"><button class="btn utama" id="dImpor">Impor</button></div><div id="dHasil" class="muted" style="margin-top:8px"></div></div>' +
     '<div class="kartu"><b>Sinkron otomatis</b><p class="muted">Impor berkas di folder Inbox → status CV dari data KC (Gudang Laporan KC, semua pembina, dikirim LENSA PK setiap ada laporan baru) → cocokkan nama pemenang. Berjalan tiap pagi bila jadwal harian dipasang.</p>' +
@@ -1508,6 +3210,7 @@ function ownerData(el) {
     }, Promise.resolve());
     busy(btn, jalan).then(function () { out.innerHTML = hasil.join('<br>'); return muatUlang(true).then(function () { var o = $('#dHasil'); if (o) o.innerHTML = hasil.join('<br>'); }); }).catch(function () { });
   };
+  pasangUnggahJakon(el); // 2.3.0 (Tahap 7)
   tabel($('#tImp'), d.impor, [['Waktu', 'Waktu'], ['Sumber', 'Sumber'], ['File', 'Berkas'], ['Baris', 'Baris', 'num'], ['Relevan', 'Konstruksi', 'num'], ['Baru', 'Baru', 'num'], ['Diperbarui', 'Diperbarui', 'num'], ['Catatan', 'Catatan']], { id: 'imp' });
 }
 
@@ -1532,18 +3235,8 @@ function tandaSegar(t, siap, err) {
    tiap lapis nilai kontrak dikali tarifnya, lalu dijumlah. Nilai kontrak yang termasuk PPN dibagi 1,11 dulu (seperti E-Jakon).
    ============================================================ */
 var URL_EJAKON = 'https://ejakon.bpjsketenagakerjaan.go.id/';
-var TARIF_JAKON = [ // [batas atas lapis, tarif JKK, tarif JKM]
-  [100000000, 0.0021, 0.0003], [500000000, 0.0017, 0.0002], [1000000000, 0.0013, 0.0002], [5000000000, 0.0011, 0.0001], [Infinity, 0.0009, 0.0001]];
-function hitungIuranJakon(nilai, termasukPpn) {
-  var n = Math.max(0, Number(nilai) || 0), dasar = Math.round(termasukPpn ? n / 1.11 : n), bawah = 0, jkk = 0, jkm = 0, lapis = [];
-  TARIF_JAKON.forEach(function (t) {
-    var porsi = Math.min(dasar, t[0]) - bawah;
-    if (porsi > 0) { lapis.push({ dari: bawah, sampai: t[0], porsi: porsi, tJkk: t[1], tJkm: t[2], jkk: porsi * t[1], jkm: porsi * t[2] }); jkk += porsi * t[1]; jkm += porsi * t[2]; }
-    bawah = t[0];
-  });
-  jkk = Math.round(jkk); jkm = Math.round(jkm);
-  return { nilai: n, dasar: dasar, jkk: jkk, jkm: jkm, total: jkk + jkm, lapis: lapis };
-}
+// 2.3.0 (Tahap 7): rumus satu dengan server SIGAP — kit/jakon.js (KitJakon.iuran)
+function hitungIuranJakon(nilai, termasukPpn) { return KitJakon.iuran(nilai, termasukPpn); }
 function angkaRp(t) { return Number(String(t || '').replace(/[^\d]/g, '')) || 0; }
 function persen(x) { return (x * 100).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + '%'; }
 function singkatRp(x) { return x >= 1e9 ? (x / 1e9).toLocaleString('id-ID') + ' M' : (x / 1e6).toLocaleString('id-ID') + ' jt'; }
@@ -1923,6 +3616,450 @@ function tabPeta(el) {
   gambar();
 }
 
+/* === 60-proyek.js === */
+/* ============================================================
+   SIGAP Jakon 2.3.0 (LENSA Suite Tahap 7, keputusan Hafidz 24 Nov 2026):
+   - Unggah laporan "Proyek Jakon Aktif" (semua pembina) di menu Data — diurai di perangkat (KitXls + KitImpor), .xlsx lewat server
+   - Proyek Jakon di menu Proyek (Paket SIRUP | Proyek Jakon), CV/PT (status proyek), detail proyek & CV
+   - Ringkasan: angka proyek Jakon, prioritas penertiban, kontak pemegang banyak CV
+   - Peta panas: Lokasi perusahaan | Lokasi proyek, 13 kecamatan (KitPeta) + jenis pekerjaan × kecamatan.
+     Warna: biru = banyak-sedikit; terakota → merah (tema SIGAP) = perlu perhatian. Pengamat: jumlah saja, tanpa nominal.
+   ============================================================ */
+var PANAS_BIRU = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
+var PANAS_MERAH = ['#FDEDE5', '#F9CDB6', '#F0A27E', '#E07445', '#C2410C', '#9F2D10', '#7F1D1D'];
+var STATUS_PROYEK_CV = ['Ada proyek aktif', 'Proyek berakhir ≤ 30 hari', 'Tanpa proyek aktif', 'Belum pernah ada proyek Jakon'];
+
+function tglTambah(n) { var d = new Date(Date.now() + n * 864e5); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function tglPendek(t) { var m = String(t || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? +m[3] + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'][+m[2] - 1] + ' ' + m[1] : (t || '-'); }
+function proyekJakon() { return S.d.proyekJakon || []; }
+function pjAktif() { return proyekJakon().filter(function (p) { return p.Status === 'Aktif'; }); }
+function akhirPj(p) { return String(p.TglAkhir || '').slice(0, 10); }
+function berakhir30(p) { var t = akhirPj(p); return p.Status === 'Aktif' && !!t && t >= today() && t <= tglTambah(30); }
+function lewatMasa(p) { var t = akhirPj(p); return p.Status === 'Aktif' && !!t && t < today(); }
+function iuranPerluCek(p) { return /perlu cek|bawah/i.test(p.StatusIuran || ''); }
+function labelPembina(p) { return p.Pembina === 'EJAKON' ? 'EJAKON · belum dibagi' : (p.PembinaNama ? p.PembinaNama : p.Pembina || '-'); }
+function perTanggalPj() { var t = ''; proyekJakon().forEach(function (p) { var x = String(p.TerakhirMuncul || '').slice(0, 10); if (x > t) t = x; }); return t; }
+
+/** Indeks proyek per CV (dihitung sekali per data). */
+function indeksPj() {
+  if (S._pjDari === S.d && S._pjIdx) return S._pjIdx;
+  var idx = {};
+  proyekJakon().forEach(function (p) {
+    if (!p.CV_ID) return;
+    var x = idx[p.CV_ID] = idx[p.CV_ID] || { aktif: [], semua: [] };
+    x.semua.push(p); if (p.Status === 'Aktif') x.aktif.push(p);
+  });
+  S._pjIdx = idx; S._pjDari = S.d;
+  return idx;
+}
+function statusProyekCv(c) {
+  var x = indeksPj()[c.ID];
+  if (!x || !x.semua.length) return STATUS_PROYEK_CV[3];
+  if (!x.aktif.length) return STATUS_PROYEK_CV[2];
+  return x.aktif.every(function (p) { return berakhir30(p) || lewatMasa(p); }) ? STATUS_PROYEK_CV[1] : STATUS_PROYEK_CV[0];
+}
+function chipProyek(s) { return '<span class="chip ' + ({ 'Ada proyek aktif': 'aktif', 'Proyek berakhir ≤ 30 hari': 'belum', 'Tanpa proyek aktif': 'menunggak', 'Belum pernah ada proyek Jakon': 'nonaktif' }[s] || '') + '">' + esc(s) + '</span>'; }
+
+/* ---------- unggah laporan (menu Data) ---------- */
+function kartuUnggahJakon() {
+  var lap = (S.d.infoProyek && S.d.infoProyek.laporan) || [];
+  return '<div class="kartu" id="kJakon"><b>Laporan Proyek Jakon Aktif</b><p class="muted">Unduh dari sistem laporan "Proyek Jakon Aktif" (semua pembina), lalu unggah di sini (.xls, .xlsx, atau .csv). ' +
+    'Laporan semua pembina menggantikan seluruh daftar; laporan satu pembina hanya menggantikan proyek pembina itu. Salinannya disimpan juga di Gudang Laporan KC (LENSA PK).</p>' +
+    '<div class="baris"><input type="file" id="jFile" accept=".xls,.xlsx,.csv,.html,.htm" style="flex:1"><button class="btn utama" id="jUnggah">Unggah laporan</button></div><div id="jHasil" class="muted" style="margin-top:8px"></div>' +
+    (lap.length ? '<div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Diunggah</th><th>Berkas</th><th>Data per</th><th>Pembina</th><th class="num">Proyek</th><th>Hasil</th><th>Gudang</th></tr></thead><tbody>' +
+      lap.map(function (x) { return '<tr><td>' + esc(x.waktu) + '<br><span class="muted">' + esc(x.asal) + '</span></td><td>' + esc(x.file) + '</td><td>' + esc(tglPendek(x.tanggal)) + '</td><td>' + esc(x.pembina === 'SEMUA' ? 'Semua' : x.pembina) + '</td><td class="num">' + x.baris + '</td><td class="muted">' + esc(x.hasil) + '</td><td>' + chip(/^Tersimpan/.test(x.gudang) ? 'Tersimpan' : x.gudang) + '</td></tr>'; }).join('') +
+      '</tbody></table></div>' : '') + '</div>';
+}
+function pasangUnggahJakon(el) {
+  var b = $('#jUnggah', el); if (!b) return;
+  b.onclick = function () {
+    var btn = this, f = $('#jFile', el).files[0], out = $('#jHasil', el);
+    if (!f) return toast('Pilih berkas laporan', true);
+    var kirim = function (arg) {
+      return call('imporProyekJakon', arg).then(function (r) {
+        if (r.sama) { out.innerHTML = esc(r.pesan); return; }
+        out.innerHTML = '✓ Laporan per ' + esc(tglPendek(r.tanggal)) + ' (' + (r.pembina === 'SEMUA' ? 'semua pembina' : esc(r.pembina)) + '): ' + r.baris + ' proyek · ' + r.baru + ' baru, ' + r.diperbarui + ' diperbarui, ' + r.keluar + ' keluar dari laporan · ' +
+          r.cvBaru + ' CV baru · paket SIRUP cocok ' + r.paketCocok + (r.paketMirip ? ', mirip ' + r.paketMirip : '') + '<br>Lokasi: ' + r.ringkas.lokasi.pamekasan + ' di kecamatan Pamekasan, ' + r.ringkas.lokasi.luar + ' luar Pamekasan, ' + r.ringkas.lokasi.belum + ' belum diketahui.';
+        return muatUlang(true).then(function () { var o = $('#jHasil'); if (o) o.innerHTML = out.innerHTML; });
+      });
+    };
+    var jalan = /\.xlsx$/i.test(f.name)
+      ? bacaBerkas(f).then(function (x) { return kirim({ base64: x.base64, nama: f.name, mime: f.type }); })
+      : f.arrayBuffer().then(function (buf) {
+        KitImpor.pasang({ jenis: ['PROYEK_JAKON'] });
+        var h = KitXls.baca(buf), u = h.teks !== undefined ? KitImpor.uraiTeks(h.teks, f.name) : KitImpor.urai(h.grid, f.name);
+        var lr = KitImpor.ringkas(u);
+        out.innerHTML = 'Terbaca ' + lr.baris.length + ' proyek, data per ' + esc(tglPendek(lr.per.tanggal)) + '. Mengirim…';
+        return kirim({ lr: lr }).catch(function (e) {
+          if (!/lebih lama/.test(e.message)) throw e;
+          if (!confirm(e.message + '\n\nTetap terapkan laporan lama ini?')) throw e;
+          return kirim({ lr: lr, paksa: true });
+        });
+      });
+    busy(btn, jalan, 'Membaca laporan…').catch(function (e) { out.innerHTML = '<span style="color:var(--merah)">✗ ' + esc(e.message) + '</span>'; });
+  };
+}
+
+/* ---------- Ringkasan (Pemilik/Pelaksana) ---------- */
+function blokRingkasJakon() {
+  var a = pjAktif(), per = perTanggalPj();
+  if (!proyekJakon().length) return '<h3>Proyek Jakon aktif</h3><div class="info">Belum ada laporan Proyek Jakon Aktif. Unggah di menu <b>Data</b>.</div>';
+  var jml = function (f) { return a.reduce(function (s, p) { return s + (Number(p[f]) || 0); }, 0); };
+  var kpi = function (n, l, cls, go) { return '<div class="kpi ' + (cls || '') + (go ? ' klik' : '') + '"' + (go ? ' data-pj="' + esc(go) + '"' : '') + '><div class="n">' + n + '</div><div class="l">' + esc(l) + '</div></div>'; };
+  return '<h3>Proyek Jakon aktif <span class="muted">· laporan per ' + esc(tglPendek(per)) + '</span></h3><div class="grid">' +
+    kpi(a.length, 'Proyek aktif', '', 'Semua') + kpi(jt(jml('NilaiProyek')), 'Nilai proyek') + kpi(jt(jml('NilaiIuran')), 'Iuran Jakon (laporan)') + kpi(jml('TK').toLocaleString('id-ID'), 'Tenaga kerja') +
+    kpi(a.filter(berakhir30).length, 'Berakhir ≤ 30 hari', 'oranye', 'Berakhir ≤ 30 hari') + kpi(a.filter(lewatMasa).length, 'Lewat masa, masih aktif', 'oranye', 'Lewat masa') +
+    kpi(a.filter(iuranPerluCek).length, 'Iuran perlu cek', 'merah', 'Iuran perlu cek') + kpi(a.filter(function (p) { return p.Pembina === 'EJAKON'; }).length, 'EJAKON belum dibagi', 'biru', 'EJAKON belum dibagi') +
+    kpi(a.filter(function (p) { return !p.Kecamatan; }).length, 'Lokasi belum diketahui', '', 'Lokasi belum diketahui') + '</div>' +
+    '<h3>Prioritas penertiban</h3><div class="filters" id="fPrio2"></div><div id="tPrio2"></div>' +
+    '<h3>Kontak pemegang banyak CV</h3><p class="muted" style="margin-top:-6px">Satu nomor HP (kontak proyek di laporan atau kontak CV) yang mengurus beberapa perusahaan — penertiban cukup lewat satu orang.</p><div id="tKontak"></div>';
+}
+var PRIORITAS = [
+  ['Tanpa proyek + menunggak', function (c) { return c.Status === 'Menunggak' && /^(Tanpa|Belum pernah)/.test(statusProyekCv(c)); }],
+  ['Ada proyek + menunggak', function (c) { return c.Status === 'Menunggak' && /^(Ada|Proyek berakhir)/.test(statusProyekCv(c)); }],
+  ['Proyek segera berakhir', function (c) { var x = indeksPj()[c.ID]; return !!x && x.aktif.some(berakhir30); }]
+];
+function paketBelumJakon() {
+  var th = String((S.d.info && S.d.info.tahun) || new Date().getFullYear());
+  return S.d.paket.filter(function (p) { return p.Pemenang && !p.NoJakon && ['Selesai', 'Dibatalkan'].indexOf(p.StatusPemkab) < 0 && (!p.Tahun || String(p.Tahun) >= th); });
+}
+function pasangRingkasJakon(el) {
+  $$('[data-pj]', el).forEach(function (k) { k.onclick = function () { S.f.pkMode = 'jakon'; S.f.pjFil = k.dataset.pj; S.f.pjSt = 'Aktif'; S.go('proyek'); }; });
+  var w = $('#tPrio2', el); if (!w) return;
+  var pilihan = PRIORITAS.map(function (x) { return [x[0], S.d.cv.filter(x[1]).length]; }).concat([['Paket Pemkab belum Jakon', paketBelumJakon().length]]);
+  var render = function () {
+    var f = S.f.prio2 || PRIORITAS[0][0];
+    if (f === 'Paket Pemkab belum Jakon') {
+      return tabel(w, paketBelumJakon(), [['NamaPaket', 'Paket', 'judul-hp'], ['Pemenang', 'Pemenang'], [function (r) { return chip(r.StatusCV); }, 'Status CV'], [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return chip(r.StatusPemkab || 'Belum dimulai'); }, 'Status proyek'],
+        [function (r) { return r.KontakCV ? '<a class="btn wa kecil" target="_blank" href="' + esc(waLink(r.KontakCV, pesanTagih(r))) + '" onclick="event.stopPropagation()">WA</a>' : ''; }, '']],
+        { id: 'prioPk', hp: 1, klik: detailPaket, csv: 'paket-belum-jakon', kosong: 'Semua paket berpemenang sudah tercatat Jakon.' });
+    }
+    var fn = PRIORITAS.filter(function (x) { return x[0] === f; })[0][1], idx = indeksPj();
+    var rows = S.d.cv.filter(fn).sort(function (a, b) { return (Number(b.NominalTunggak) || 0) - (Number(a.NominalTunggak) || 0); });
+    tabel(w, rows, [['Nama', 'CV/PT', 'judul-hp'], [function (r) { return chip(r.Status) + (r.BulanTunggak ? ' <span class="muted">' + esc(r.BulanTunggak) + ' bln</span>' : ''); }, 'Status'], [function (r) { return rp(r.NominalTunggak); }, 'Tunggakan', 'num'],
+      [function (r) { return chipProyek(statusProyekCv(r)); }, 'Proyek Jakon'], [function (r) { var x = idx[r.ID]; var a = x ? x.aktif.slice().sort(function (p, q) { return akhirPj(p).localeCompare(akhirPj(q)); })[0] : null; return a ? esc(tglPendek(akhirPj(a))) : '-'; }, 'Proyek berakhir'],
+      ['KecKantor', 'Kec. kantor'], ['Pembina', 'Pembina']],
+      { id: 'prio2', hp: 1, klik: detailCv, csv: 'prioritas-penertiban', kosong: 'Tidak ada CV pada kelompok ini.' });
+  };
+  if (!S.f.prio2) S.f.prio2 = PRIORITAS[0][0];
+  filterChips($('#fPrio2', el), 'prio2', pilihan, render);
+  render();
+  tabelKontakBanyak($('#tKontak', el));
+}
+
+/** Kontak (HP) yang mengurus ≥ 2 CV: dari kontak proyek di laporan dan kontak CV. */
+function kontakBanyakCv() {
+  var g = {}, cvById = {};
+  S.d.cv.forEach(function (c) { cvById[c.ID] = c; });
+  var tambah = function (hp, nama, cvId, peran) {
+    hp = hp62(hp); if (!hp || hp.length < 10 || !cvId || !cvById[cvId]) return;
+    var x = g[hp] = g[hp] || { hp: hp, nama: {}, cv: {}, proyek: 0 };
+    if (nama) x.nama[String(nama).trim().toUpperCase()] = true;
+    x.cv[cvId] = true;
+    if (peran === 'proyek') x.proyek++;
+  };
+  pjAktif().forEach(function (p) { tambah(p.KontakHP, p.KontakNama, p.CV_ID, 'proyek'); });
+  S.d.cv.forEach(function (c) { tambah(c.Kontak, '', c.ID); KONTAK_CV.forEach(function (k) { tambah(c[k[2]], c[k[1]], c.ID); }); });
+  return Object.keys(g).map(function (k) { var x = g[k]; x.daftar = Object.keys(x.cv).map(function (id) { return cvById[id]; }); x.namaTeks = Object.keys(x.nama).join(' / ') || '-'; return x; })
+    .filter(function (x) { return x.daftar.length >= 2; })
+    .sort(function (a, b) { return b.daftar.length - a.daftar.length; });
+}
+function pesanKontakBanyak(x) {
+  var daftar = x.daftar.map(function (c) { return '• ' + c.Nama + (c.Status === 'Menunggak' ? ' (ada tunggakan iuran)' : c.Status === 'Nonaktif' ? ' (nonaktif)' : ''); }).join('\n');
+  return 'Halo Bapak/Ibu ' + (x.namaTeks !== '-' ? x.namaTeks.split(' / ')[0] : '') + ' 👋, kami dari BPJS Ketenagakerjaan KC Pamekasan.\n\nTerkait kepesertaan perusahaan jasa konstruksi yang Bapak/Ibu urus:\n' + daftar +
+    '\n\nBila ada perusahaan yang sedang tidak memiliki proyek, mohon dilaporkan atau diajukan penonaktifan agar tagihan tidak terus berjalan. Kami siap membantu 🙏';
+}
+function tabelKontakBanyak(w) {
+  if (!w) return;
+  tabel(w, kontakBanyakCv(), [['namaTeks', 'Nama kontak', 'judul-hp'], ['hp', 'HP'], [function (r) { return r.daftar.length; }, 'CV', 'num'],
+    [function (r) { return r.daftar.map(function (c) { return esc(c.Nama) + ' ' + chip(c.Status); }).join('<br>'); }, 'Perusahaan'],
+    [function (r) { return r.daftar.filter(function (c) { return c.Status === 'Menunggak'; }).length; }, 'Menunggak', 'num'],
+    [function (r) { return '<a class="btn wa kecil" target="_blank" href="' + esc(waLink(r.hp, pesanKontakBanyak(r))) + '">WA</a>'; }, '']],
+    { id: 'kontakBanyak', hp: 1, csv: 'kontak-pemegang-banyak-cv', csvKolom: [['namaTeks', 'Nama'], ['hp', 'HP'], [function (r) { return r.daftar.map(function (c) { return c.Nama; }).join(', '); }, 'Perusahaan']], kosong: 'Belum ada kontak yang memegang lebih dari satu CV.' });
+}
+
+/* ---------- menu Proyek: Paket SIRUP | Proyek Jakon ---------- */
+var FILTER_PJ = {
+  'Semua': function () { return true; },
+  'Berakhir ≤ 30 hari': berakhir30, 'Lewat masa': lewatMasa, 'Iuran perlu cek': iuranPerluCek,
+  'Lunas tahun lalu': function (p) { return /tahun sebelumnya/.test(p.StatusIuran || ''); },
+  'EJAKON belum dibagi': function (p) { return p.Pembina === 'EJAKON'; },
+  'Lokasi belum diketahui': function (p) { return !p.Kecamatan; },
+  'Paket mirip — cek': function (p) { return /^Mirip/.test(p.CocokPaket || ''); },
+  'Pemilik belum jelas': function (p) { return p.KategoriPemilik === 'Belum jelas'; }
+};
+function pilihModeProyek(el, render) {
+  var w = document.createElement('div'); w.className = 'seg'; w.style.margin = '0 0 10px';
+  w.innerHTML = '<button data-m="sirup">Paket SIRUP/SPSE</button><button data-m="jakon">Proyek Jakon (laporan)</button>';
+  el.insertBefore(w, el.firstChild.nextSibling);
+  var tandai = function () { $$('button', w).forEach(function (b) { b.classList.toggle('on', b.dataset.m === (S.f.pkMode || 'sirup')); }); };
+  $$('button', w).forEach(function (b) { b.onclick = function () { S.f.pkMode = b.dataset.m; S.go('proyek'); }; });
+  tandai();
+}
+function ownerProyekJakon(el) {
+  el.innerHTML = '<h2>Proyek konstruksi</h2><p class="muted" style="margin-top:-6px">Proyek Jakon dari laporan resmi per ' + esc(tglPendek(perTanggalPj())) + '.</p><div class="filters" id="fPj"></div><div class="filters" id="fPjSt"></div><div class="filters" id="fPjMilik"></div><div id="tPj"></div>';
+  pilihModeProyek(el);
+  var semua = proyekJakon();
+  var render = function () {
+    var f = S.f.pjFil || 'Semua', st = S.f.pjSt || 'Aktif', mk = S.f.pjMilik || 'Semua pemilik';
+    var rows = semua.filter(function (p) {
+      if (st !== 'Semua status' && p.Status !== st) return false;
+      if (mk !== 'Semua pemilik' && p.KategoriPemilik !== mk) return false;
+      return (FILTER_PJ[f] || FILTER_PJ.Semua)(p);
+    }).sort(function (a, b) { return akhirPj(a).localeCompare(akhirPj(b)); });
+    tabel($('#tPj'), rows, [['NamaProyek', 'Proyek', 'judul-hp'], [function (r) { return esc(r.NamaBU || '-') + (r.NPP ? '<br><span class="muted">' + esc(r.NPP) + '</span>' : ''); }, 'Pelaksana'],
+      [function (r) { return esc(r.Kecamatan || '–') + (r.Desa ? '<br><span class="muted">' + esc(r.Desa) + '</span>' : ''); }, 'Lokasi'], ['JenisPekerjaan', 'Jenis'],
+      [function (r) { return esc(r.KategoriPemilik || '-') + (r.PemilikPerkiraan ? ' <span class="muted">(perkiraan)</span>' : ''); }, 'Pemilik'],
+      [function (r) { return jt(r.NilaiProyek); }, 'Nilai', 'num'], [function (r) { return chip(r.StatusIuran === 'Sesuai' ? 'Iuran sesuai' : r.StatusIuran); }, 'Iuran'], ['TK', 'TK', 'num'],
+      [function (r) { return esc(tglPendek(akhirPj(r))) + (berakhir30(r) ? ' ' + chip('≤ 30 hari') : lewatMasa(r) ? ' ' + chip('Lewat masa') : ''); }, 'Berakhir'], [function (r) { return esc(labelPembina(r)); }, 'Pembina']],
+      { id: 'pj', hp: 1, klik: detailProyekJakon, csv: 'proyek-jakon', csvKolom: [['NoProyek', 'No. proyek'], ['KodeTender', 'Kode tender'], ['NamaProyek', 'Nama proyek'], ['NPP', 'NPP'], ['NamaBU', 'Pelaksana'], ['TglAwal', 'Tgl awal'], ['TglAkhir', 'Tgl akhir'],
+        ['NilaiProyek', 'Nilai proyek'], ['NilaiIuran', 'Nilai iuran'], ['Simulasi', 'Simulasi iuran'], ['StatusIuran', 'Status iuran'], ['TK', 'TK entri'], ['Kanal', 'Kanal'], ['SumberDana', 'Sumber dana'], ['Pemilik', 'Pemilik'], ['KategoriPemilik', 'Kategori pemilik'],
+        ['Kecamatan', 'Kecamatan'], ['Desa', 'Desa'], ['JenisPekerjaan', 'Jenis pekerjaan'], ['KontakNama', 'Kontak proyek'], ['KontakHP', 'HP kontak'], ['Pembina', 'Pembina'], ['Status', 'Status'], ['TerakhirMuncul', 'Terakhir muncul']],
+        kosong: semua.length ? 'Tidak ada proyek pada saringan ini.' : 'Belum ada laporan Proyek Jakon Aktif. Unggah di menu Data.' });
+  };
+  filterChips($('#fPj'), 'pjFil', Object.keys(FILTER_PJ).map(function (k) { return [k, semua.filter(function (p) { return p.Status === 'Aktif' && FILTER_PJ[k](p); }).length]; }), render);
+  if (!S.f.pjSt) S.f.pjSt = 'Aktif';
+  filterChips($('#fPjSt'), 'pjSt', ['Aktif', 'Keluar dari laporan', 'Semua status'], render);
+  filterChips($('#fPjMilik'), 'pjMilik', ['Semua pemilik'].concat((S.d.infoProyek && S.d.infoProyek.kategoriPemilik) || []), render);
+  render();
+}
+
+function opsiKec(pilih, denganLuar) {
+  return '<option value="">— otomatis —</option>' + KitWilayah.KECAMATAN.concat(denganLuar ? [KitWilayah.LUAR] : []).map(function (k) { return '<option ' + (k === pilih ? 'selected' : '') + '>' + esc(k) + '</option>'; }).join('');
+}
+function opsiDesa(kec, pilih) {
+  var d = kec && kec !== KitWilayah.LUAR ? KitWilayah.daftarDesa(kec) : [];
+  return '<option value="">— (tanpa desa) —</option>' + d.map(function (x) { return '<option ' + (x === pilih ? 'selected' : '') + '>' + esc(x) + '</option>'; }).join('');
+}
+function pasangPilihWilayah(bg, idKec, idDesa) {
+  var k = $(idKec, bg), d = $(idDesa, bg);
+  k.onchange = function () { d.innerHTML = opsiDesa(k.value, ''); d.disabled = !k.value || k.value === KitWilayah.LUAR; };
+  d.disabled = !k.value || k.value === KitWilayah.LUAR;
+}
+
+function detailProyekJakon(p) {
+  var cv = S.d.cv.filter(function (c) { return c.ID === p.CV_ID; })[0], pk = S.d.paket.filter(function (x) { return x.ID === p.PAKET_ID; })[0];
+  var pemilik = S.me.peran === 'OWNER'; // Pemilik & Pelaksana
+  var manual = String(p.LokasiManual || '').split('|');
+  var sisa = akhirPj(p) ? Math.round((new Date(akhirPj(p)) - new Date(today())) / 864e5) : null;
+  var lain = cv ? proyekJakon().filter(function (x) { return x.CV_ID === cv.ID && x.NoProyek !== p.NoProyek && x.Pembina && x.Pembina !== 'EJAKON'; }) : [];
+  var pembLain = {}; lain.forEach(function (x) { pembLain[labelPembina(x)] = (pembLain[labelPembina(x)] || 0) + 1; });
+  var baris = function (l, v) { return '<tr><th style="width:38%">' + esc(l) + '</th><td>' + v + '</td></tr>'; };
+  var pesan = 'Halo ' + (p.KontakNama || '') + ' 👋, kami dari BPJS Ketenagakerjaan KC Pamekasan terkait proyek "' + p.NamaProyek + '" (' + (p.NamaBU || '') + ').';
+  modal('<h3>' + esc(p.NamaProyek) + '</h3><div class="baris">' + chip(p.Status) + chip(p.StatusIuran) + (p.Pembina === 'EJAKON' ? chip('EJAKON · belum dibagi') : '') + (p.CocokPaket ? chip(p.CocokPaket) : '') + '</div>' +
+    '<div class="tbl-wrap" style="margin-top:10px"><table><tbody>' +
+    baris('No. proyek · kode tender', esc(p.NoProyek) + ' · ' + esc(p.KodeTender || '-')) +
+    baris('Pelaksana', esc(p.NamaBU || '-') + (p.NPP ? ' · NPP ' + esc(p.NPP) : '') + (cv ? ' ' + chip(cv.Status) + ' <a href="#" id="pjCv">buka CV</a>' : '')) +
+    baris('Masa proyek', esc(tglPendek(p.TglAwal)) + ' – ' + esc(tglPendek(p.TglAkhir)) + (sisa !== null && p.Status === 'Aktif' ? ' <span class="muted">(' + (sisa >= 0 ? 'sisa ' + sisa + ' hari' : 'lewat ' + (-sisa) + ' hari') + ')</span>' : '')) +
+    (p.NilaiProyek !== undefined ? baris('Nilai proyek', rp(p.NilaiProyek)) + baris('Iuran', rp(p.NilaiIuran) + ' di laporan · simulasi ' + rp(p.Simulasi) + (Number(p.IuranTerakhir) && Number(p.IuranTerakhir) !== Number(p.NilaiIuran) ? ' · terakhir tercatat ' + rp(p.IuranTerakhir) : '')) : '') +
+    baris('Tenaga kerja', esc(p.TK || 0) + ' entri' + (p.BNBA !== undefined ? ' · BNBA ' + esc(p.BNBA || 0) + ' · valid ' + esc(p.ValidBNBA || 0) : '')) +
+    baris('Pemilik proyek', esc(p.Pemilik || '-') + '<br><span class="muted">' + esc(p.KategoriPemilik || '') + (p.PemilikPerkiraan ? ' (perkiraan)' : '') + (p.SumberDana ? ' · ' + esc(p.SumberDana) : '') + (p.Kanal ? ' · kanal ' + esc(p.Kanal) : '') + '</span>') +
+    baris('Lokasi', esc(p.Kecamatan || 'Belum diketahui') + (p.Desa ? ' / ' + esc(p.Desa) : '') + (p.LokasiCara ? '<br><span class="muted">' + esc(p.LokasiCara) + '</span>' : '')) +
+    baris('Jenis pekerjaan', esc(p.JenisPekerjaan || '-')) +
+    (p.Pembina !== undefined ? baris('Pembina', esc(labelPembina(p)) + (p.Pembina === 'EJAKON' ? '<br><span class="muted">Petunjuk: pembina perusahaan menurut data KC: ' + esc((cv && cv.Pembina) || '-') + (Object.keys(pembLain).length ? ' · proyek lain NPP ini: ' + esc(Object.keys(pembLain).map(function (k) { return k + ' (' + pembLain[k] + ')'; }).join(', ')) : '') + '</span>' : '')) : '') +
+    (pk ? baris('Paket SIRUP', esc(pk.NamaPaket) + ' <a href="#" id="pjPaket">buka</a>') : '') +
+    '</tbody></table></div>' +
+    (pemilik && p.KontakHP ? '<h3>Kontak proyek</h3><div class="baris"><span style="flex:1">' + esc(p.KontakNama || '-') + ' · ' + esc(p.KontakHP) + '</span><a class="btn wa kecil" target="_blank" href="' + esc(waLink(p.KontakHP, pesan)) + '">WA</a>' +
+      (cv ? '<button class="btn kecil" data-jadikan="Pelaksana">Jadikan kontak Pelaksana CV</button><button class="btn kecil" data-jadikan="Admin">Jadikan kontak Admin CV</button>' : '') + '</div>' +
+      '<p class="muted">Kontak penanggung jawab dari laporan disimpan per proyek dan tidak menimpa kontak CV, kecuali Anda memilih tombol di atas.</p>' : '') +
+    (pemilik ? '<h3>Lokasi proyek</h3><div class="dua"><div><label class="f">Kecamatan</label><select id="pjKec">' + opsiKec(p.LokasiManual ? manual[0] : '', true) + '</select></div><div><label class="f">Desa / kelurahan</label><select id="pjDesa">' + opsiDesa(manual[0], manual[1] || '') + '</select></div></div>' +
+      '<label class="f">Ingat ejaan dari nama paket <small>(boleh kosong; mis. "Dusun Glugur" → desa ini, dipakai untuk proyek lain)</small></label><input type="text" id="pjIngat" placeholder="kata di nama paket yang menunjukkan lokasi">' +
+      '<div class="aksi" style="justify-content:flex-start;margin-top:8px"><button class="btn" id="pjLok">Simpan lokasi</button></div>' +
+      '<h3>Kategori pemilik</h3><div class="baris"><select id="pjMilik" style="flex:1">' + ((S.d.infoProyek && S.d.infoProyek.kategoriPemilik) || []).map(function (k) { return '<option ' + (k === p.KategoriPemilik ? 'selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select><button class="btn" id="pjMilikSimpan">Simpan untuk "' + esc(String(p.Pemilik || '').slice(0, 40)) + '"</button></div>' : '') +
+    '<div class="aksi"><button class="btn utama" data-tutup>Tutup</button></div>', function (bg) {
+      if ($('#pjCv', bg)) $('#pjCv', bg).onclick = function (e) { e.preventDefault(); bg.remove(); detailCv(cv); };
+      if ($('#pjPaket', bg)) $('#pjPaket', bg).onclick = function (e) { e.preventDefault(); bg.remove(); detailPaket(pk); };
+      $$('[data-jadikan]', bg).forEach(function (b) {
+        b.onclick = function () { busy(b, call('kontakProyekKeCv', { noProyek: p.NoProyek, sebagai: b.dataset.jadikan })).then(function () { toast('Kontak ' + b.dataset.jadikan.toLowerCase() + ' CV diperbarui'); return muatUlang(true); }).catch(function () { }); };
+      });
+      if (!pemilik) return;
+      pasangPilihWilayah(bg, '#pjKec', '#pjDesa');
+      $('#pjLok', bg).onclick = function () {
+        busy(this, call('aturLokasiProyek', { noProyek: p.NoProyek, kec: $('#pjKec', bg).value, desa: $('#pjDesa', bg).value, ingat: $('#pjIngat', bg).value.trim() }))
+          .then(function () { bg.remove(); toast('Lokasi proyek tersimpan'); return muatUlang(true); }).catch(function () { });
+      };
+      $('#pjMilikSimpan', bg).onclick = function () {
+        busy(this, call('aturPemilik', { pemilik: p.Pemilik, kategori: $('#pjMilik', bg).value }))
+          .then(function (r) { bg.remove(); toast('Kategori pemilik tersimpan (' + r.jumlah + ' proyek dihitung ulang)'); return muatUlang(true); }).catch(function () { });
+      };
+    });
+}
+
+/** Bagian di detail CV: proyek Jakon + kecamatan kantor. */
+function blokCvJakon(c) {
+  var x = indeksPj()[c.ID], manual = String(c.KecamatanManual || '').split('|');
+  return '<h3>Proyek Jakon ' + chipProyek(statusProyekCv(c)) + '</h3>' + (x && x.semua.length ? x.semua.slice().sort(function (a, b) { return akhirPj(b).localeCompare(akhirPj(a)); }).map(function (p) {
+    return '<div class="muted">• ' + esc(p.NamaProyek) + ' — ' + jt(p.NilaiProyek) + ' · s.d. ' + esc(tglPendek(akhirPj(p))) + ' ' + chip(p.Status === 'Aktif' ? (berakhir30(p) ? '≤ 30 hari' : 'Aktif') : p.Status) + '</div>';
+  }).join('') : '<div class="muted">Tidak ada di laporan Proyek Jakon Aktif.</div>') +
+    '<h3>Kecamatan kantor</h3><div class="muted">Sekarang: ' + esc(c.KecKantor || 'belum diketahui') + (c.DesaKantor ? ' / ' + esc(c.DesaKantor) : '') + (c.CaraKantor ? ' (' + esc(c.CaraKantor) + ')' : '') + '</div>' +
+    '<div class="dua"><div><label class="f">Kecamatan</label><select id="cvKec">' + opsiKec(c.KecamatanManual ? manual[0] : '', true) + '</select></div><div><label class="f">Desa / kelurahan</label><select id="cvDesa">' + opsiDesa(manual[0], manual[1] || '') + '</select></div></div>' +
+    '<div class="aksi" style="justify-content:flex-start;margin-top:8px"><button class="btn" id="cvLokSimpan">Simpan kecamatan kantor</button></div>';
+}
+function pasangCvJakon(bg, c) {
+  if (!$('#cvKec', bg)) return;
+  pasangPilihWilayah(bg, '#cvKec', '#cvDesa');
+  $('#cvLokSimpan', bg).onclick = function () {
+    busy(this, call('aturLokasiCv', { cvId: c.ID, kec: $('#cvKec', bg).value, desa: $('#cvDesa', bg).value })).then(function () { toast('Kecamatan kantor tersimpan'); bg.remove(); return muatUlang(true); }).catch(function () { });
+  };
+}
+
+/* ---------- Peta panas ---------- */
+function ukuranPanas(basis, pengamat) {
+  if (basis === 'cv') return [['n', 'CV/PT', 'b'], ['p', 'Punya proyek aktif', 'b'], ['m', 'Menunggak', 'r'], ['x', 'Tanpa proyek aktif', 'r'], ['g', 'Tunggakan (Rp)', 'r']];
+  return pengamat ? [['n', 'Jumlah proyek', 'b'], ['t', 'Tenaga kerja', 'b'], ['a', 'Berakhir ≤ 30 hari', 'r'], ['b', 'Paket Pemkab belum Jakon', 'r']]
+    : [['n', 'Jumlah proyek', 'b'], ['v', 'Nilai proyek', 'b'], ['t', 'Tenaga kerja', 'b'], ['a', 'Berakhir ≤ 30 hari', 'r'], ['z', 'Iuran perlu cek', 'r'], ['b', 'Paket Pemkab belum Jakon', 'r']];
+}
+function selPanas() { return { n: 0, v: 0, t: 0, a: 0, z: 0, b: 0, p: 0, m: 0, x: 0, g: 0, daftar: [], paket: [] }; }
+function adaIsi(s) { return !!s && (s.daftar.length > 0 || s.paket.length > 0); }
+function kecPaket(p) {
+  if (p._kec === undefined) { var r = KitWilayah.cari(p.Lokasi || '') ; if (!r.kec) r = KitWilayah.cari(p.NamaPaket || ''); p._kec = r.kec || ''; }
+  return p._kec;
+}
+/** Wadah angka per kecamatan untuk satu dasar & saringan. */
+function wadahPanas(basis, f) {
+  var w = { kec: {}, luar: {}, belum: selPanas(), total: selPanas(), baris: {} }, sel = function (k) { return k === KitWilayah.LUAR ? null : k ? (w.kec[k] = w.kec[k] || selPanas()) : w.belum; };
+  var tambahBaris = function (grup, k, isi) { var g = w.baris[grup] = w.baris[grup] || {}; var s = g[k || '(belum)'] = g[k || '(belum)'] || selPanas(); isi(s); };
+  if (basis === 'cv') {
+    S.d.cv.forEach(function (c) {
+      if (f.pembina !== 'Semua' && String(c.Pembina || '') !== f.pembina) return;
+      var st = statusProyekCv(c), isi = function (s) {
+        s.n++; s.daftar.push(c);
+        if (/^(Ada|Proyek berakhir)/.test(st)) s.p++;
+        if (c.Status === 'Menunggak') { s.m++; s.g += Number(c.NominalTunggak) || 0; }
+        if (/^(Tanpa|Belum pernah)/.test(st) && c.Status !== 'Nonaktif') s.x++;
+      };
+      var k = c.KecKantor || '';
+      if (k === KitWilayah.LUAR) { var nm = 'Luar Pamekasan'; isi(w.luar[nm] = w.luar[nm] || selPanas()); } else isi(sel(k));
+      isi(w.total); tambahBaris(c.Status || 'Belum terdaftar / perlu cek', k === KitWilayah.LUAR ? 'Luar' : k, isi);
+    });
+    return w;
+  }
+  pjAktif().forEach(function (p) {
+    if (f.pemilik !== 'Semua' && p.KategoriPemilik !== f.pemilik) return;
+    if (f.pembina !== 'Semua' && String(p.Pembina || '') !== f.pembina) return;
+    var isi = function (s) { s.n++; s.v += Number(p.NilaiProyek) || 0; s.t += Number(p.TK) || 0; if (berakhir30(p)) s.a++; if (iuranPerluCek(p)) s.z++; s.daftar.push(p); };
+    if (p.Kecamatan === KitWilayah.LUAR) { var m = String(p.LokasiCara || '').match(/·\s*(.+)$/), nm = m ? m[1].replace(/^Kec\.\s*/, 'Kec. ') : 'Luar Pamekasan'; isi(w.luar[nm] = w.luar[nm] || selPanas()); }
+    else isi(sel(p.Kecamatan));
+    isi(w.total); tambahBaris(p.JenisPekerjaan || 'Lainnya', p.Kecamatan === KitWilayah.LUAR ? 'Luar' : p.Kecamatan, isi);
+  });
+  if (f.pemilik === 'Semua' || f.pemilik === 'Pemkab Pamekasan') paketBelumJakon().forEach(function (p) {
+    var k = kecPaket(p), isi = function (s) { s.b++; s.paket.push(p); };
+    if (k === KitWilayah.LUAR) return;
+    isi(sel(k)); isi(w.total); tambahBaris(KitJakon.jenisPekerjaan(p.NamaPaket), k, isi);
+  });
+  return w;
+}
+function warnaPanas(v, maks, ramp) {
+  if (!v) return null;
+  var i = Math.min(ramp.length - 1, Math.floor(v / (maks || 1) * (ramp.length - 0.001)));
+  return { bg: ramp[i], fg: i >= 3 ? '#fff' : '#1C1917' };
+}
+function teksUkur(u, v) { return u === 'v' || u === 'g' ? jt(v) : Math.round(v).toLocaleString('id-ID'); }
+
+function tabPanas(el) {
+  var pengamat = S.me.peran === 'PEMKAB';
+  var basis = pengamat ? 'proyek' : (S.f.panasBasis || 'proyek');
+  var daftarUkur = ukuranPanas(basis, pengamat);
+  var ukur = daftarUkur.some(function (u) { return u[0] === S.f.panasUkur; }) ? S.f.panasUkur : daftarUkur[0][0];
+  var f = { pemilik: S.f.panasMilik || 'Semua', pembina: S.f.panasPembina || 'Semua' };
+  var pembina = {};
+  (basis === 'cv' ? S.d.cv : pjAktif()).forEach(function (x) { if (x.Pembina) pembina[x.Pembina] = basis === 'cv' ? x.Pembina : labelPembina(x); });
+  var w = wadahPanas(basis, f), def = daftarUkur.filter(function (u) { return u[0] === ukur; })[0], ramp = def[2] === 'r' ? PANAS_MERAH : PANAS_BIRU;
+  var maks = 0; KitPeta.kec.forEach(function (k) { var s = w.kec[k.nama]; if (s && s[ukur] > maks) maks = s[ukur]; });
+  var per = perTanggalPj();
+  el.innerHTML = '<h2>Peta panas jasa konstruksi</h2><p class="muted" style="margin-top:-6px">' + (proyekJakon().length ? 'Proyek Jakon aktif dari laporan per ' + esc(tglPendek(per)) + '.' : 'Belum ada laporan Proyek Jakon Aktif.') +
+    (pengamat ? ' Angka jumlah saja (tanpa nominal).' : '') + ' Ketuk kecamatan untuk melihat daftarnya.</p>' +
+    (pengamat ? '' : '<div class="seg" id="pnBasis" style="margin-bottom:8px"><button data-b="cv">Lokasi perusahaan</button><button data-b="proyek">Lokasi proyek</button></div>') +
+    '<div class="filters" id="pnUkur"></div>' +
+    '<div class="baris" style="gap:8px;margin-bottom:8px">' + (basis === 'proyek' ? '<select id="pnMilik" style="width:auto">' + ['Semua'].concat((S.d.infoProyek && S.d.infoProyek.kategoriPemilik) || []).map(function (k) { return '<option ' + (k === f.pemilik ? 'selected' : '') + ' value="' + esc(k) + '">' + (k === 'Semua' ? 'Semua pemilik proyek' : esc(k)) + '</option>'; }).join('') + '</select>' : '') +
+    (pengamat ? '' : '<select id="pnPembina" style="width:auto"><option value="Semua">Semua pembina</option>' + Object.keys(pembina).sort().map(function (k) { return '<option value="' + esc(k) + '"' + (k === f.pembina ? ' selected' : '') + '>' + esc(k === 'EJAKON' ? 'EJAKON · belum dibagi' : pembina[k] + (pembina[k] !== k ? ' (' + k + ')' : '')) + '</option>'; }).join('') + '</select>') + '</div>' +
+    '<div class="grid" style="margin-bottom:10px">' + daftarUkur.map(function (u) { return '<div class="kpi"><div class="n" style="font-size:20px">' + teksUkur(u[0], w.total[u[0]]) + '</div><div class="l">' + esc(u[1]) + '</div></div>'; }).join('') + '</div>' +
+    '<div class="panas-grid"><div>' + svgPanas(w, ukur, maks, ramp) + legendaPanasSigap(ramp, maks, ukur, def[2]) + '</div><div><div class="muted" style="margin-bottom:4px">Urutan kecamatan · ' + esc(def[1]) + '</div><div id="pnUrut"></div></div></div>' +
+    '<h3>' + (basis === 'cv' ? 'Status CV × kecamatan kantor' : 'Jenis pekerjaan × kecamatan') + '</h3><div id="pnTabel"></div>' +
+    '<p class="muted">' + (basis === 'cv' ? 'Kecamatan kantor dari alamat Data Badan Usaha (data KC) atau pilihan petugas di detail CV.' : 'Lokasi proyek dibaca dari nama paket (kecamatan, desa/kelurahan dengan ejaan longgar), nama pemilik, lokasi paket SIRUP, atau pilihan petugas di detail proyek. Paket Pemkab belum Jakon: paket SIRUP berpemenang yang belum punya nomor proyek Jakon.') + '</p>';
+  if (!pengamat) $$('#pnBasis button', el).forEach(function (b) { b.classList.toggle('on', b.dataset.b === basis); b.onclick = function () { S.f.panasBasis = b.dataset.b; S.f.panasUkur = ''; S.f.panasPembina = 'Semua'; tabPanas(el); }; });
+  S.f.panasUkur = ukur;
+  filterChips($('#pnUkur', el), 'panasUkur', daftarUkur.map(function (u) { return u[0]; }), function () { tabPanas(el); });
+  $$('#pnUkur button', el).forEach(function (b) { var u = daftarUkur.filter(function (x) { return x[0] === b.dataset.v; })[0]; b.textContent = u[1]; });
+  if ($('#pnMilik', el)) $('#pnMilik', el).onchange = function () { S.f.panasMilik = this.value; tabPanas(el); };
+  if ($('#pnPembina', el)) $('#pnPembina', el).onchange = function () { S.f.panasPembina = this.value; tabPanas(el); };
+  // urutan kecamatan + di luar peta
+  var urut = KitPeta.kec.map(function (k) { return { nama: k.nama, s: w.kec[k.nama] }; }).sort(function (a, b) { return ((b.s && b.s[ukur]) || 0) - ((a.s && a.s[ukur]) || 0) || a.nama.localeCompare(b.nama); });
+  var baris = function (nama, s, luar, ket) {
+    var v = s ? s[ukur] : 0, c = warnaPanas(v, luar ? Math.max(maks, v) : maks, ramp);
+    return '<div class="panas-urut' + (adaIsi(s) ? ' klik' : '') + '" data-kec="' + esc(nama) + '"' + (luar ? ' data-luar="1"' : '') + '><span>' + esc(nama) + (ket ? ' <span class="muted">' + esc(ket) + '</span>' : '') + '</span><span class="batang"><i style="width:' + (v ? Math.max(3, Math.min(100, v / (maks || v) * 100)) : 0) + '%;background:' + (c ? c.bg : 'transparent') + '"></i></span><b>' + (v ? teksUkur(ukur, v) : '–') + '</b></div>';
+  };
+  var luarKeys = Object.keys(w.luar).sort(function (a, b) { return w.luar[b].n - w.luar[a].n; });
+  $('#pnUrut', el).innerHTML = urut.map(function (x) { return baris(x.nama, x.s); }).join('') +
+    '<div class="muted" style="margin:10px 0 4px">Di luar peta</div>' + luarKeys.map(function (k) { return baris(k, w.luar[k], true, k === 'Luar Pamekasan' ? '' : '(luar Pamekasan)'); }).join('') + baris('Belum diketahui', w.belum, true, basis === 'cv' ? '(alamat belum terbaca)' : '(perlu desa / pilihan petugas)');
+  var buka = function (nama, luar) {
+    var s = luar ? (nama === 'Belum diketahui' ? w.belum : w.luar[nama]) : w.kec[nama];
+    if (!adaIsi(s)) return;
+    daftarPanas(nama, s, basis, pengamat, ukur);
+  };
+  $$('.panas-urut.klik', el).forEach(function (r) { r.onclick = function () { buka(r.dataset.kec, !!r.dataset.luar); }; });
+  $$('path.panas-wil', el).forEach(function (pth) { pth.onclick = function () { buka(pth.dataset.kec, false); }; });
+  tabelPanas($('#pnTabel', el), w, ukur, ramp, basis);
+}
+function svgPanas(w, ukur, maks, ramp) {
+  var g = '', t = '';
+  KitPeta.kec.forEach(function (k) {
+    var s = w.kec[k.nama], v = s ? s[ukur] : 0, c = warnaPanas(v, maks, ramp);
+    g += '<path d="' + k.d + '" fill="' + (c ? c.bg : '#EEF0F4') + '" class="panas-wil" data-kec="' + esc(k.nama) + '"><title>' + esc(k.nama + ': ' + (v ? teksUkur(ukur, v) : 'belum ada')) + '</title></path>';
+    var fg = c ? c.fg : '#8A93A3', halo = fg === '#fff' ? 'rgba(0,0,0,.35)' : 'rgba(255,255,255,.75)';
+    t += '<text x="' + k.lx + '" y="' + (k.ly - 1) + '" class="panas-lbl" fill="' + fg + '" stroke="' + halo + '">' + esc(k.nama) + '</text>' + (v ? '<text x="' + k.lx + '" y="' + (k.ly + 10) + '" class="panas-lbl angka" fill="' + fg + '" stroke="' + halo + '">' + teksUkur(ukur, v) + '</text>' : '');
+  });
+  return '<svg viewBox="-3 -3 ' + (KitPeta.lebar + 6) + ' ' + (KitPeta.tinggi + 6) + '" class="panas-peta" role="img" aria-label="Peta 13 kecamatan Kabupaten Pamekasan">' + g + t + '</svg>';
+}
+function legendaPanasSigap(ramp, maks, ukur, jenis) {
+  return '<div class="panas-skala"><span>sedikit</span>' + ramp.map(function (c) { return '<i style="background:' + c + '"></i>'; }).join('') + '<span>' + (maks ? 'banyak (' + teksUkur(ukur, maks) + ')' : 'banyak') + '</span></div>' +
+    '<div class="muted" style="font-size:12px">' + (jenis === 'r' ? 'Terakota → merah: perlu perhatian.' : 'Biru: banyak-sedikit.') + ' Abu-abu: belum ada data.</div>';
+}
+function tabelPanas(el, w, ukur, ramp, basis) {
+  var kec = KitWilayah.KECAMATAN.filter(function (k) { return w.kec[k]; }), adaLuar = Object.keys(w.luar).length > 0, adaBelum = w.belum.daftar.length > 0;
+  var kolom = kec.concat(adaLuar ? ['Luar'] : []).concat(adaBelum ? ['(belum)'] : []);
+  var grup = Object.keys(w.baris).sort(function (a, b) {
+    var urut = basis === 'cv' ? STATUS_CV : KitJakon.URUT_JENIS; return (urut.indexOf(a) < 0 ? 99 : urut.indexOf(a)) - (urut.indexOf(b) < 0 ? 99 : urut.indexOf(b));
+  });
+  if (!grup.length) { el.innerHTML = '<div class="kosong">Belum ada data.</div>'; return; }
+  var maks = 0; grup.forEach(function (gk) { kolom.forEach(function (k) { var s = w.baris[gk][k]; if (s && s[ukur] > maks) maks = s[ukur]; }); });
+  var sel = function (s, tebal) {
+    var v = s ? s[ukur] : 0; if (!adaIsi(s) || (!v && !tebal)) return '<td class="panas-sel kosong-sel">' + (adaIsi(s) ? '0' : '–') + '</td>';
+    var c = warnaPanas(v, maks, ramp);
+    return '<td class="panas-sel' + (tebal ? ' jml' : '') + '" style="background:' + (tebal || !c ? '#fff' : c.bg) + ';color:' + (tebal || !c ? 'var(--teks)' : c.fg) + '">' + (v ? teksUkur(ukur, v) : '0') + '</td>';
+  };
+  var gabung = function (s, x) { Object.keys(s).forEach(function (f) { s[f] = Array.isArray(s[f]) ? s[f].concat(x[f]) : s[f] + x[f]; }); };
+  var jumlahGrup = function (gk) { var s = selPanas(); kolom.forEach(function (k) { var x = w.baris[gk][k]; if (x) gabung(s, x); }); return s; };
+  var jumlahKol = function (k) { var s = selPanas(); grup.forEach(function (gk) { var x = w.baris[gk][k]; if (x) gabung(s, x); }); return s; };
+  el.innerHTML = '<div class="tbl-wrap"><table class="panas-tabel"><thead><tr><th class="panas-sudut">' + (basis === 'cv' ? 'Status CV' : 'Jenis pekerjaan') + '</th>' + kolom.map(function (k) { return '<th class="panas-kec">' + esc(k) + '</th>'; }).join('') + '<th class="panas-kec">Jumlah</th></tr></thead><tbody>' +
+    grup.map(function (gk) { return '<tr><th class="panas-jenis">' + esc(gk) + '</th>' + kolom.map(function (k) { return sel(w.baris[gk][k]); }).join('') + sel(jumlahGrup(gk), true) + '</tr>'; }).join('') +
+    '<tr class="panas-jml"><th class="panas-jenis">Jumlah</th>' + kolom.map(function (k) { return sel(jumlahKol(k), true); }).join('') + sel(w.total, true) + '</tr></tbody></table></div>';
+}
+function daftarPanas(nama, s, basis, pengamat, ukur) {
+  var paket = ukur === 'b';
+  var bg = modal('<h3>' + esc(nama) + ' · ' + (paket ? s.paket.length + ' paket Pemkab belum Jakon' : s.daftar.length + (basis === 'cv' ? ' CV/PT' : ' proyek')) + '</h3><div id="pnDaftar"></div><div class="aksi"><button class="btn utama" data-tutup>Tutup</button></div>');
+  var w = $('#pnDaftar', bg);
+  if (paket) return tabel(w, s.paket, [['NamaPaket', 'Paket', 'judul-hp'], ['Pemenang', 'Pemenang'], ['Satker', 'Satker']].concat(pengamat ? [] : [[function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num']]),
+    { id: 'pnPk', hp: 1, klik: function (p) { bg.remove(); detailPaket(p); }, csv: 'paket-belum-jakon-' + nama });
+  if (basis === 'cv') return tabel(w, s.daftar, [['Nama', 'CV/PT', 'judul-hp'], [function (r) { return chip(r.Status); }, 'Status'], [function (r) { return chipProyek(statusProyekCv(r)); }, 'Proyek Jakon'], [function (r) { return rp(r.NominalTunggak); }, 'Tunggakan', 'num'], ['DesaKantor', 'Desa']],
+    { id: 'pnCv', hp: 1, klik: function (c) { bg.remove(); detailCv(c); }, csv: 'cv-' + nama });
+  tabel(w, s.daftar, [['NamaProyek', 'Proyek', 'judul-hp'], ['NamaBU', 'Pelaksana'], ['Desa', 'Desa'], ['JenisPekerjaan', 'Jenis']].concat(pengamat ? [['TK', 'TK', 'num']] : [[function (r) { return jt(r.NilaiProyek); }, 'Nilai', 'num'], ['TK', 'TK', 'num']])
+    .concat([[function (r) { return esc(tglPendek(akhirPj(r))) + (berakhir30(r) ? ' ' + chip('≤ 30 hari') : ''); }, 'Berakhir']]),
+    { id: 'pnPj', hp: 1, klik: pengamat ? null : function (p) { bg.remove(); detailProyekJakon(p); }, csv: 'proyek-' + nama });
+}
+
+/* ---------- Mitra: proyek Jakon perusahaannya ---------- */
+function blokMitraJakon() {
+  var a = pjAktif();
+  if (!a.length) return '';
+  return '<h3>Proyek terdaftar Jakon (laporan BPJS Ketenagakerjaan)</h3><div id="tMitraPj"></div>';
+}
+function pasangMitraJakon(el) {
+  var w = $('#tMitraPj', el); if (!w) return;
+  tabel(w, pjAktif(), [['NamaProyek', 'Proyek', 'judul-hp'], ['NamaBU', 'Perusahaan'], [function (r) { return esc(tglPendek(r.TglAwal)) + ' – ' + esc(tglPendek(r.TglAkhir)); }, 'Masa proyek'], ['TK', 'Tenaga kerja', 'num'],
+    [function (r) { return rp(r.NilaiIuran || r.IuranTerakhir); }, 'Iuran', 'num']], { id: 'mitraPj', hp: 1, kosong: 'Belum ada proyek' });
+}
+
 /* === 99-mulai.js === */
 /* ----------------------------------------------------------------------
  *  SIGAP Jakon 2.0 · mulai: buka penyimpanan (PIN bila ada) → kode undangan bila belum masuk → tampilkan data
@@ -1932,6 +4069,7 @@ function tabPeta(el) {
 function siapkanData(d) {
   d.cv = d.cv || []; d.paket = d.paket || []; d.pengajuan = d.pengajuan || []; d.pengguna = d.pengguna || []; d.akses = d.akses || []; d.impor = d.impor || []; d.lokasi = d.lokasi || [];
   d.info = d.info || {};
+  d.proyekJakon = d.proyekJakon || []; d.infoProyek = d.infoProyek || { laporan: [], kategoriPemilik: [], jenisPekerjaan: [] }; // 2.3.0 (Tahap 7)
   S.d = d; S.me = d.me || {};
   return d;
 }
