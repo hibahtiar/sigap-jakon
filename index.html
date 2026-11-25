@@ -166,6 +166,8 @@ details.rincian-tg table{font-size:12.5px}details.rincian-tg th,details.rincian-
 .umum{max-width:720px;margin:0 auto;padding:18px 14px 60px}.umum-kepala{display:flex;gap:12px;align-items:center;margin-bottom:14px}.umum-kepala .mono{width:46px;height:46px;flex:none}.umum-kepala .mono svg{width:46px;height:46px;border-radius:12px}
 .umum-kepala b{font-size:20px;color:var(--hijau)}.umum-tab{margin-bottom:12px;flex-wrap:wrap}.umum .kartu{padding:18px}.umum-kaki{font-size:12px;text-align:center;margin-top:18px}
 .umum-jebak{position:absolute;left:-5000px;width:1px;height:1px;overflow:hidden}
+.umum-tombol{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px} /* 2.4.2: jarak isian Pemohon ↔ tombol, dan antartombol */
+.umum-tombol>.btn{margin:0}.baris.umum-tombol{margin-top:6px}
 </style>
 </head>
 <body>
@@ -1926,7 +1928,7 @@ var KitPeta = {
  *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
  *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
  * ---------------------------------------------------------------------- */
-var VERSI_APP = '2.4.1'; // 2.4.1: galat "Script error." tanpa rincian (dari luar aplikasi) tidak dicatat; waktu galat memakai jam setempat · 2.4.0: tampilan umum #penonaktifan (tanpa kode akses), penonaktifan disederhanakan, rekonsiliasi paket SIRUP ⇄ Proyek Jakon · 2.3.5: rincian tagihan CV s.d. bulan berjalan (sama dengan LENSA) · 2.3.4: kolom Gudang laporan Proyek Jakon — Menunggu (diambil LENSA ±1 jam) / Tersimpan G… · 2.3.3: istilah Peta → Maps, Peta panas → Heat maps · 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
+var VERSI_APP = '2.4.2'; // 2.4.2: penonaktifan umum — petunjuk NPP, alamat wajib, petunjuk nama pimpinan, jarak tombol · 2.4.1: galat "Script error." tanpa rincian (dari luar aplikasi) tidak dicatat; waktu galat memakai jam setempat · 2.4.0: tampilan umum #penonaktifan (tanpa kode akses), penonaktifan disederhanakan, rekonsiliasi paket SIRUP ⇄ Proyek Jakon · 2.3.5: rincian tagihan CV s.d. bulan berjalan (sama dengan LENSA) · 2.3.4: kolom Gudang laporan Proyek Jakon — Menunggu (diambil LENSA ±1 jam) / Tersimpan G… · 2.3.3: istilah Peta → Maps, Peta panas → Heat maps · 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
 var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
 var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
 
@@ -2931,8 +2933,8 @@ function centangMaksud(pilih) {
 function isianPenonaktifan(pimpinan) {
   return '<div class="dua"><div>' + inp('BULAN', 'Nonaktif mulai bulan', thisMonth(), { type: 'month', req: 1 }) + '</div><div>' + inp('JUMLAH_TK', 'Jumlah karyawan', '', { type: 'number' }) + '</div></div>' +
     inp('ALASAN', 'Keterangan', 'Tidak ada pekerjaan/proyek konstruksi') +
-    inp('NAMA_DIREKTUR', 'Nama pimpinan', pimpinan || '', { hint: 'dicetak di berita acara sebagai pimpinan & pejabat yang ditemui' }) +
-    '<div class="muted" style="margin-top:8px">Tanggal surat & berita acara otomatis tanggal pengajuan. Nama & jabatan penanda tangan, maksud kunjungan, dan hasil kunjungan dikosongkan untuk ditulis tangan.</div>';
+    inp('NAMA_DIREKTUR', 'Nama pimpinan', pimpinan || '', { hint: 'wajib direktur/pimpinan utama perusahaan' }) +
+    '<div class="muted" style="margin-top:8px">Tanggal surat & berita acara otomatis tanggal pengajuan. Nama pimpinan dicetak di berita acara (pimpinan & pejabat yang ditemui); bila diisi, jabatan di surat otomatis "Direktur". Nama penanda tangan, maksud kunjungan, dan hasil kunjungan dikosongkan untuk ditulis tangan.</div>';
 }
 
 /**
@@ -4264,11 +4266,11 @@ function umumForm(w, ubah) {
   w.innerHTML = '<h2 style="margin-top:0">' + (ubah ? 'Ubah isian · ' + esc(ubah.id) : 'Penonaktifan kepesertaan') + '</h2><div class="muted">Langkah 1 dari 2: isi data. Surat penonaktifan dan berita acara dibuat otomatis dari isian ini.</div>' +
     '<form id="uForm" autocomplete="on" novalidate>' +
     inp('NAMA_PK', 'Nama perusahaan', '', { req: 1, hint: 'contoh: CV Karya Abadi' }) +
-    '<div class="dua"><div>' + inp('NPP', 'NPP', '', { req: 1, num: 1, hint: '8 digit, lihat kartu/surat BPJS Ketenagakerjaan' }) + '</div><div>' + inp('ALAMAT_PK', 'Alamat perusahaan', '', { hint: 'boleh kosong' }) + '</div></div>' +
+    '<div class="dua"><div>' + inp('NPP', 'NPP', '', { req: 1, num: 1, hint: '8 digit angka pada sertifikat BPJS Ketenagakerjaan' }) + '</div><div>' + inp('ALAMAT_PK', 'Alamat perusahaan', '', { req: 1 }) + '</div></div>' +
     isianPenonaktifan('') +
     '<h3>Pemohon</h3><div class="dua"><div>' + inp('PEMOHON', 'Nama pemohon', '', { req: 1 }) + '</div><div>' + inp('HP_PEMOHON', 'No. WhatsApp', '', { req: 1, type: 'tel', hint: 'pembina menghubungi lewat nomor ini' }) + '</div></div>' +
     '<div class="umum-jebak" aria-hidden="true"><label>Situs web</label><input type="text" data-k="situs" tabindex="-1" autocomplete="off"></div>' +
-    '<div class="aksi">' + (ubah ? '<button type="button" class="btn" id="uBatal">Batal</button>' : '') + '<button class="btn utama" id="uLanjut">' + (ubah ? 'Simpan perubahan' : 'Simpan & lanjut') + '</button></div></form>';
+    '<div class="aksi umum-tombol">' + (ubah ? '<button type="button" class="btn" id="uBatal">Batal</button>' : '') + '<button class="btn utama" id="uLanjut">' + (ubah ? 'Simpan perubahan' : 'Simpan & lanjut') + '</button></div></form>';
   S.isi = null;
   if ($('#uBatal')) $('#uBatal').onclick = function () { umumRender(); };
   $('#uForm').onsubmit = function (e) {
@@ -4299,10 +4301,10 @@ function umumLangkah(w, p, d) {
     (p.catatan ? '<div class="info kuning"><b>Catatan pembina:</b> ' + esc(p.catatan) + '</div>' : '') +
     '<div class="muted" style="margin-top:6px">Nonaktif mulai ' + esc(bln(x.BULAN)) + (x.NAMA_DIREKTUR ? ' · pimpinan ' + esc(x.NAMA_DIREKTUR) : '') + ' · pemohon ' + esc(x.PEMOHON) + ' (' + esc(x.HP_PEMOHON) + ')</div>' +
     (bisaUbah ? '<div class="step"><div class="no">1</div><div><b>Unduh dokumen yang sudah terisi</b><div class="muted">Cetak (A4, 1 halaman), tanda tangan basah & stempel, lalu pindai atau foto dengan jelas.</div>' +
-      [['nonaktif', 'Surat penonaktifan'], ['ba', 'Berita acara']].map(function (dk) { return '<div style="margin-top:8px"><b>' + dk[1] + '</b><div class="baris" style="margin-top:4px"><button type="button" class="btn" data-dok="' + dk[0] + '" data-fmt="pdf">Unduh PDF</button><button type="button" class="btn" data-dok="' + dk[0] + '" data-fmt="docx">Unduh Word</button></div></div>'; }).join('') + '</div></div>' +
+      [['nonaktif', 'Surat penonaktifan'], ['ba', 'Berita acara']].map(function (dk) { return '<div style="margin-top:8px"><b>' + dk[1] + '</b><div class="baris umum-tombol" style="margin-top:6px"><button type="button" class="btn" data-dok="' + dk[0] + '" data-fmt="pdf">Unduh PDF</button><button type="button" class="btn" data-dok="' + dk[0] + '" data-fmt="docx">Unduh Word</button></div></div>'; }).join('') + '</div></div>' +
       '<div class="step"><div class="no">2</div><div style="flex:1"><b>Unggah berkas</b><div class="muted">PDF, JPG, atau PNG, maks. 5 MB per berkas. Foto otomatis diperkecil.</div>' + baris('surat') + baris('ba') + '</div></div>' +
       '<div class="step"><div class="no">3</div><div><b>Kirim ke pembina</b><div class="muted">Pembina memeriksa berkas dan menghubungi Anda lewat WhatsApp. Simpan nomor pengajuan untuk cek status.</div></div></div>' +
-      '<div class="aksi"><button type="button" class="btn" id="uUbah">Ubah isian</button><button type="button" class="btn" id="uBaru">Mulai baru</button><span class="sp"></span><button type="button" class="btn utama" id="uKirim">Kirim ke pembina</button></div>'
+      '<div class="aksi umum-tombol"><button type="button" class="btn" id="uUbah">Ubah isian</button><button type="button" class="btn" id="uBaru">Mulai baru</button><span class="sp"></span><button type="button" class="btn utama" id="uKirim">Kirim ke pembina</button></div>'
     : '<div class="info" style="margin-top:12px">' + (p.status === 'Selesai' ? 'Pengajuan sudah selesai diproses pembina.' : p.status === 'Ditolak' ? 'Pengajuan ditolak. Lihat catatan pembina atau hubungi pembina.' : 'Pengajuan sudah terkirim dan sedang diperiksa pembina. Pembina akan menghubungi lewat WhatsApp ' + esc(x.HP_PEMOHON || '') + '.') +
       '<br>Simpan nomor pengajuan <b>' + esc(p.id) + '</b> untuk cek status.</div><div class="aksi"><button type="button" class="btn" id="uBaru">Ajukan untuk perusahaan lain</button><button type="button" class="btn utama" id="uCek">Cek status terbaru</button></div>');
   $$('[data-dok]', w).forEach(function (b) {
