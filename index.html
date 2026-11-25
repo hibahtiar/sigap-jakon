@@ -137,7 +137,9 @@ details.tempel .baris{margin-top:6px;gap:6px}details.tempel input{flex:1;min-wid
 .panas-grid{display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);gap:18px;align-items:start;margin-bottom:6px}
 @media(max-width:820px){.panas-grid{grid-template-columns:1fr}}
 svg.panas-peta{width:100%;height:auto;display:block}
-.panas-wil{stroke:#fff;stroke-width:1.4;stroke-linejoin:round;cursor:pointer}.panas-wil:hover{stroke:#1C1917;stroke-width:1.8}
+.panas-wil{stroke:#fff;stroke-width:1.2;stroke-linejoin:round;cursor:pointer;transition:filter .2s ease,stroke-width .2s ease}
+.panas-wil:hover{stroke:#fff;stroke-width:2;filter:drop-shadow(0 0 3px var(--g)) drop-shadow(0 0 10px var(--g))} /* 2.4.4: garis hitam diganti cahaya sewarna wilayah */
+svg.panas-peta{overflow:visible;filter:drop-shadow(0 8px 14px rgba(28,25,23,.10))}
 .panas-lbl{font-size:9.5px;font-weight:600;text-anchor:middle;stroke-width:2.2px;paint-order:stroke;stroke-linejoin:round;pointer-events:none}
 .panas-lbl.angka{font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums}
 .panas-skala{display:flex;align-items:center;gap:2px;flex-wrap:wrap;font-size:11.5px;color:var(--abu);margin:8px 0 2px}.panas-skala i{display:inline-block;width:22px;height:12px;border-radius:2px}.panas-skala span{margin:0 6px}
@@ -188,6 +190,22 @@ tbody tr:last-child td{border-bottom:0}
 @media(max-width:720px){.tbl-kaki .sp{display:none}.hal{width:100%;justify-content:center}.hp-kartu td{vertical-align:top}}
 .grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))} /* 2.4.3: ubin angka lebih lega & sama lebar di layar lebar */
 @media(max-width:720px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* 2.4.4: Ringkasan dengan menu samping — satu bagian tampil sekaligus */
+.ring-tata{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start}
+.ring-samping{position:sticky;top:108px;display:flex;flex-direction:column;gap:4px;background:#fff;border:1px solid var(--garis);border-radius:var(--r);padding:6px}
+.ring-samping button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:0;background:transparent;border-radius:9px;padding:10px 12px;cursor:pointer;color:var(--teks);font:inherit}
+.ring-samping button:hover{background:#FFF7ED}
+.ring-samping button.on{background:#FFEDD5;box-shadow:inset 3px 0 0 var(--hijau)}
+.ring-judul{display:flex;align-items:center;gap:8px;width:100%;font-weight:700;font-size:14px}
+.ring-judul b{margin-left:auto;font-size:12px;background:#F5F5F4;color:var(--abu);border-radius:999px;padding:1px 8px;font-variant-numeric:tabular-nums}
+.ring-samping button.on .ring-judul b{background:var(--hijau);color:#fff}
+.ring-sub{font-size:12px;color:var(--abu);line-height:1.35}
+.ring-isi{min-width:0}.ring-isi>h3:first-child,.ring-isi>.info:first-child,.ring-isi>.kartu:first-child{margin-top:0}
+.ring-ket{margin:-2px 0 10px;font-size:13.5px}
+.modal.lebar{max-width:980px}
+.chip-baris{display:inline-flex;gap:4px;flex-wrap:wrap}
+.ringkas-cv{display:inline-block;max-width:420px}
+@media(max-width:900px){.ring-tata{grid-template-columns:1fr;gap:12px}.ring-samping{position:static;flex-direction:row;overflow-x:auto;padding:4px;scrollbar-width:none}.ring-samping::-webkit-scrollbar{display:none}.ring-samping button{flex:none;width:200px}}
 </style>
 </head>
 <body>
@@ -1948,7 +1966,7 @@ var KitPeta = {
  *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
  *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
  * ---------------------------------------------------------------------- */
-var VERSI_APP = '2.4.3'; // 2.4.3: tabel per halaman (10/25/50/100), kolom lebih lebar & rapi · 2.4.2: penonaktifan umum — petunjuk NPP, alamat wajib, petunjuk nama pimpinan, jarak tombol · 2.4.1: galat "Script error." tanpa rincian (dari luar aplikasi) tidak dicatat; waktu galat memakai jam setempat · 2.4.0: tampilan umum #penonaktifan (tanpa kode akses), penonaktifan disederhanakan, rekonsiliasi paket SIRUP ⇄ Proyek Jakon · 2.3.5: rincian tagihan CV s.d. bulan berjalan (sama dengan LENSA) · 2.3.4: kolom Gudang laporan Proyek Jakon — Menunggu (diambil LENSA ±1 jam) / Tersimpan G… · 2.3.3: istilah Peta → Maps, Peta panas → Heat maps · 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
+var VERSI_APP = '2.4.4'; // 2.4.4: Ringkasan bermenu samping, kontak banyak CV ringkas + rincian, heat maps bercahaya · 2.4.3: tabel per halaman (10/25/50/100), kolom lebih lebar & rapi · 2.4.2: penonaktifan umum — petunjuk NPP, alamat wajib, petunjuk nama pimpinan, jarak tombol · 2.4.1: galat "Script error." tanpa rincian (dari luar aplikasi) tidak dicatat; waktu galat memakai jam setempat · 2.4.0: tampilan umum #penonaktifan (tanpa kode akses), penonaktifan disederhanakan, rekonsiliasi paket SIRUP ⇄ Proyek Jakon · 2.3.5: rincian tagihan CV s.d. bulan berjalan (sama dengan LENSA) · 2.3.4: kolom Gudang laporan Proyek Jakon — Menunggu (diambil LENSA ±1 jam) / Tersimpan G… · 2.3.3: istilah Peta → Maps, Peta panas → Heat maps · 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
 var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
 var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
 
@@ -2474,32 +2492,66 @@ function masalahPaket(d) {
   return d.paket.filter(function (p) { return p.Pemenang && p.StatusCV && p.StatusCV !== 'Terdaftar aktif' && ['Selesai', 'Dibatalkan'].indexOf(p.StatusPemkab) < 0; });
 }
 
+/* 2.4.4: Ringkasan dengan menu samping — satu bagian tampil sekaligus (lebih ringan & mudah ditindaklanjuti). */
+var RING_TAB = [['ikhtisar', 'Ikhtisar'], ['penertiban', 'Prioritas penertiban'], ['pemenang', 'Pemenang bermasalah'], ['kontak', 'Kontak banyak CV']];
 function ownerRingkasan(el) {
+  var d = S.d, adaPj = proyekJakon().length > 0;
+  if (RING_TAB.map(function (t) { return t[0]; }).indexOf(S.f.ringTab) < 0) S.f.ringTab = 'ikhtisar';
+  var masalah = masalahPaket(d), kontak = kontakBanyakCv();
+  var nP = adaPj ? [S.d.cv.filter(PRIORITAS[0][1]).length, S.d.cv.filter(PRIORITAS[1][1]).length] : null;
+  var sub = {
+    ikhtisar: d.cv.length + ' CV/PT · ' + (adaPj ? pjAktif().length + ' proyek Jakon aktif' : d.paket.length + ' paket'),
+    penertiban: adaPj ? nP[0] + ' tanpa proyek · ' + nP[1] + ' ada proyek (menunggak)' : 'perlu laporan Proyek Jakon',
+    pemenang: masalah.length + ' paket menunggak / nonaktif / belum terdaftar',
+    kontak: kontak.length + ' kontak memegang ≥ 2 CV'
+  };
+  var jml = { penertiban: adaPj ? nP[0] + nP[1] : '', pemenang: masalah.length, kontak: kontak.length };
+  el.innerHTML = '<div class="baris"><h2>Ringkasan</h2><span class="sp"></span><button class="btn utama" id="bSinkron">Tarik & sinkron sekarang</button></div>' +
+    '<div class="ring-tata"><nav class="ring-samping" role="tablist" aria-label="Bagian ringkasan">' + RING_TAB.map(function (t) {
+      var on = S.f.ringTab === t[0];
+      return '<button role="tab" aria-selected="' + on + '" class="' + (on ? 'on' : '') + '" data-ring="' + t[0] + '"><span class="ring-judul">' + esc(t[1]) + (jml[t[0]] !== undefined && jml[t[0]] !== '' ? '<b>' + jml[t[0]] + '</b>' : '') + '</span><span class="ring-sub">' + esc(sub[t[0]]) + '</span></button>';
+    }).join('') + '</nav><section class="ring-isi" id="ringIsi"></section></div>';
+  $('#bSinkron').onclick = function () { sinkronDanTampil(this); };
+  $$('[data-ring]', el).forEach(function (b) { b.onclick = function () { S.f.ringTab = b.dataset.ring; ownerRingkasan(el); window.scrollTo(0, 0); }; });
+  var w = $('#ringIsi', el), tab = S.f.ringTab;
+  if (tab === 'penertiban') return ringPenertiban(w);
+  if (tab === 'pemenang') return ringPemenang(w, masalah);
+  if (tab === 'kontak') {
+    w.innerHTML = '<h3 style="margin-top:0">Kontak pemegang banyak CV</h3><p class="muted ring-ket">Satu nomor HP (kontak proyek di laporan atau kontak CV) yang mengurus beberapa perusahaan — penertiban cukup lewat satu orang. Ketuk baris untuk melihat semua perusahaannya.</p><div id="tKontak"></div>';
+    return tabelKontakBanyak($('#tKontak', w));
+  }
+  ringIkhtisar(w, masalah);
+}
+function ringIkhtisar(w, masalah) {
   var d = S.d, st = hitung(d.cv, function (c) { return c.Status; });
   var berpemenang = d.paket.filter(function (p) { return p.Pemenang; });
   var real = d.paket.filter(function (p) { return STATUS_REAL.indexOf(p.StatusPemkab) >= 0; }).length;
   var tunda = d.paket.filter(function (p) { return p.StatusPemkab === 'Ditunda'; }).length;
-  var masalah = masalahPaket(d);
   var mirip = d.paket.filter(function (p) { return String(p.StatusCocok).indexOf('Mirip') === 0; });
   var kpi = function (n, l, cls, go) { return '<div class="kpi ' + (cls || '') + (go ? ' klik' : '') + '" ' + (go ? 'data-go="' + go + '"' : '') + '><div class="n">' + n + '</div><div class="l">' + esc(l) + '</div></div>'; };
-  el.innerHTML = '<div class="baris"><h2>Ringkasan</h2><span class="sp"></span><button class="btn utama" id="bSinkron">Tarik & sinkron sekarang</button></div>' + kartuInaproc(true) +
+  w.innerHTML = kartuInaproc(true) +
     '<h3>CV/PT jasa konstruksi</h3><div class="grid">' + kpi(d.cv.length, 'Total CV/PT', '', 'cv') + kpi(st['Terdaftar aktif'] || 0, 'Terdaftar aktif', 'hijau', 'cv:Terdaftar aktif') + kpi(st['Menunggak'] || 0, 'Menunggak', 'merah', 'cv:Menunggak') + kpi(st['Nonaktif'] || 0, 'Nonaktif', '', 'cv:Nonaktif') + kpi(st['Belum terdaftar / perlu cek'] || 0, 'Belum terdaftar / perlu cek', 'oranye', 'cv:Belum terdaftar / perlu cek') + '</div>' +
-    blokRingkasJakon() + // 2.3.0 (Tahap 7) · 2.4.0: + rekonsiliasi paket (di dalamnya)
-    '<h3>Proyek konstruksi (INAPROC + laporan CV)</h3><div class="grid">' + kpi(d.paket.length, 'Paket konstruksi', '', 'proyek') + kpi(d.paket.length - berpemenang.length, 'Rencana, belum ada pemenang') + kpi(berpemenang.length, 'Sudah ada pemenang', 'biru') + kpi(real, 'Terealisasi (berjalan s.d. selesai)', 'hijau') + kpi(tunda, 'Ditunda', 'oranye') + kpi(masalah.length, 'Pemenang bermasalah', 'merah', 'proyek:masalah') + '</div>' +
-    '<h3>Antrean</h3><div class="grid">' + kpi(d.pengajuan.filter(function (p) { return p.Status === 'Diajukan'; }).length, 'Pengajuan menunggu verifikasi', 'biru', 'peng') + (S.me.peranSuite === 'Pemilik' ? kpi(d.akses.length, 'Permintaan akses', '', 'user') : '') + kpi(mirip.length, 'Nama pemenang perlu dicek', 'oranye', 'proyek:mirip') + '</div>' +
-    '<h3>Prioritas tindak lanjut: pemenang yang menunggak / nonaktif / belum terdaftar</h3><div id="prio"></div>';
-  $$('[data-go]', el).forEach(function (k) {
-    k.onclick = function () { var g = k.dataset.go.split(':'); if (g[0] === 'cv' && g[1]) S.f.cvSt = g[1]; if (g[0] === 'proyek' && g[1]) S.f.pkFil = g[1] === 'masalah' ? 'Bermasalah' : 'Nama perlu dicek'; S.go(g[0]); };
+    blokRingkasJakon() +
+    '<h3>Proyek konstruksi (INAPROC + laporan CV)</h3><div class="grid">' + kpi(d.paket.length, 'Paket konstruksi', '', 'proyek') + kpi(d.paket.length - berpemenang.length, 'Rencana, belum ada pemenang') + kpi(berpemenang.length, 'Sudah ada pemenang', 'biru') + kpi(real, 'Terealisasi (berjalan s.d. selesai)', 'hijau') + kpi(tunda, 'Ditunda', 'oranye') + kpi(masalah.length, 'Pemenang bermasalah', 'merah', 'ring:pemenang') + '</div>' +
+    '<h3>Antrean</h3><div class="grid">' + kpi(d.pengajuan.filter(function (p) { return p.Status === 'Diajukan'; }).length, 'Pengajuan menunggu verifikasi', 'biru', 'peng') + (S.me.peranSuite === 'Pemilik' ? kpi(d.akses.length, 'Permintaan akses', '', 'user') : '') + kpi(mirip.length, 'Nama pemenang perlu dicek', 'oranye', 'proyek:mirip') + '</div>';
+  $$('[data-go]', w).forEach(function (k) {
+    k.onclick = function () {
+      var g = k.dataset.go.split(':');
+      if (g[0] === 'ring') { S.f.ringTab = g[1]; return S.go('ring'); }
+      if (g[0] === 'cv' && g[1]) S.f.cvSt = g[1]; if (g[0] === 'proyek' && g[1]) S.f.pkFil = g[1] === 'masalah' ? 'Bermasalah' : 'Nama perlu dicek'; S.go(g[0]);
+    };
   });
-  $('#bSinkron').onclick = function () { sinkronDanTampil(this); };
+  pasangRingkasJakon(w); pasangRingkasRekon(w);
+}
+function ringPemenang(w, masalah) {
+  w.innerHTML = '<h3 style="margin-top:0">Pemenang bermasalah</h3><p class="muted ring-ket">Pemenang paket INAPROC yang menunggak, nonaktif, atau belum terdaftar. Ketuk baris untuk rincian paket.</p><div id="prio"></div>';
   var urut = { 'Menunggak': 0, 'Nonaktif': 1, 'Belum terdaftar / perlu cek': 2 };
   masalah.sort(function (a, b) { return (urut[a.StatusCV] || 9) - (urut[b.StatusCV] || 9) || (b.NilaiKontrak || b.Pagu || 0) - (a.NilaiKontrak || a.Pagu || 0); });
-  tabel($('#prio'), masalah, [
+  tabel($('#prio', w), masalah, [
     ['Pemenang', 'Pemenang', 'judul-hp'], [function (r) { return chip(r.StatusCV); }, 'Status CV'], ['NamaPaket', 'Paket', 'teks-panjang'], ['Satker', 'Satker', 'teks-panjang'],
     [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return chip(r.StatusPemkab); }, 'Status proyek'],
     [function (r) { return r.KontakCV ? '<a class="btn wa kecil" target="_blank" href="' + esc(waLink(r.KontakCV, pesanTagih(r))) + '" onclick="event.stopPropagation()">WA</a>' : ''; }, '']
-  ], { id: 'prio', klik: detailPaket, csv: 'prioritas-tindak-lanjut', kosong: 'Tidak ada pemenang bermasalah. Mantap!' });
-  pasangRingkasJakon(el); pasangRingkasRekon(el);
+  ], { id: 'prio', hp: 1, klik: detailPaket, csv: 'prioritas-tindak-lanjut', kosong: 'Tidak ada pemenang bermasalah. Mantap!' });
 }
 
 function pesanTagih(p) {
@@ -3904,6 +3956,7 @@ function pasangUnggahJakon(el) {
 }
 
 /* ---------- Ringkasan (Pemilik/Pelaksana) ---------- */
+/** Angka Proyek Jakon aktif (bagian Ikhtisar Ringkasan). 2.4.4: prioritas & kontak pindah ke menu samping sendiri. */
 function blokRingkasJakon() {
   var a = pjAktif(), per = perTanggalPj();
   if (!proyekJakon().length) return '<h3>Proyek Jakon aktif</h3><div class="info">Belum ada laporan Proyek Jakon Aktif. Unggah di menu <b>Data</b>.</div>';
@@ -3913,9 +3966,7 @@ function blokRingkasJakon() {
     kpi(a.length, 'Proyek aktif', '', 'Semua') + kpi(jt(jml('NilaiProyek')), 'Nilai proyek') + kpi(jt(jml('NilaiIuran')), 'Iuran Jakon (laporan)') + kpi(jml('TK').toLocaleString('id-ID'), 'Tenaga kerja') +
     kpi(a.filter(berakhir30).length, 'Berakhir ≤ 30 hari', 'oranye', 'Berakhir ≤ 30 hari') + kpi(a.filter(lewatMasa).length, 'Lewat masa, masih aktif', 'oranye', 'Lewat masa') +
     kpi(a.filter(iuranPerluCek).length, 'Iuran perlu cek', 'merah', 'Iuran perlu cek') + kpi(a.filter(function (p) { return p.Pembina === 'EJAKON'; }).length, 'EJAKON belum dibagi', 'biru', 'EJAKON belum dibagi') +
-    kpi(a.filter(function (p) { return !p.Kecamatan; }).length, 'Lokasi belum diketahui', '', 'Lokasi belum diketahui') + '</div>' + blokRingkasRekon() +
-    '<h3>Prioritas penertiban</h3><div class="filters" id="fPrio2"></div><div id="tPrio2"></div>' +
-    '<h3>Kontak pemegang banyak CV</h3><p class="muted" style="margin-top:-6px">Satu nomor HP (kontak proyek di laporan atau kontak CV) yang mengurus beberapa perusahaan — penertiban cukup lewat satu orang.</p><div id="tKontak"></div>';
+    kpi(a.filter(function (p) { return !p.Kecamatan; }).length, 'Lokasi belum diketahui', '', 'Lokasi belum diketahui') + '</div>' + blokRingkasRekon();
 }
 var PRIORITAS = [
   ['Tanpa proyek + menunggak', function (c) { return c.Status === 'Menunggak' && /^(Tanpa|Belum pernah)/.test(statusProyekCv(c)); }],
@@ -3929,12 +3980,17 @@ function paketBelumJakon() {
 }
 function pasangRingkasJakon(el) {
   $$('[data-pj]', el).forEach(function (k) { k.onclick = function () { S.f.pkMode = 'jakon'; S.f.pjFil = k.dataset.pj; S.f.pjSt = 'Aktif'; S.go('proyek'); }; });
-  var w = $('#tPrio2', el); if (!w) return;
+}
+/** 2.4.4: Ringkasan › Prioritas penertiban (CV menunggak tanpa / dengan proyek, proyek segera berakhir, paket Pemkab belum Jakon). */
+function ringPenertiban(el) {
+  if (!proyekJakon().length) { el.innerHTML = '<h3 style="margin-top:0">Prioritas penertiban</h3><div class="info">Butuh laporan Proyek Jakon Aktif. Unggah di menu <b>Data</b>.</div>'; return; }
+  el.innerHTML = '<h3 style="margin-top:0">Prioritas penertiban</h3><p class="muted ring-ket">CV yang paling perlu ditertibkan, urut total tagihan terbesar. Ketuk baris untuk rincian CV.</p><div class="filters" id="fPrio2"></div><div id="tPrio2"></div>';
+  var w = $('#tPrio2', el);
   var pilihan = PRIORITAS.map(function (x) { return [x[0], S.d.cv.filter(x[1]).length]; }).concat([['Paket Pemkab belum Jakon', paketBelumJakon().length]]);
   var render = function () {
     var f = S.f.prio2 || PRIORITAS[0][0];
     if (f === 'Paket Pemkab belum Jakon') {
-      return tabel(w, paketBelumJakon(), [['NamaPaket', 'Paket', 'judul-hp'], ['Pemenang', 'Pemenang'], [function (r) { return chip(r.StatusCV); }, 'Status CV'], [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return chip(r.StatusPemkab || 'Belum dimulai'); }, 'Status proyek'],
+      return tabel(w, paketBelumJakon(), [['NamaPaket', 'Paket', 'judul-hp'], ['Pemenang', 'Pemenang', 'teks-panjang'], [function (r) { return chip(r.StatusCV); }, 'Status CV'], [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return chip(r.StatusPemkab || 'Belum dimulai'); }, 'Status proyek'],
         [function (r) { return r.KontakCV ? '<a class="btn wa kecil" target="_blank" href="' + esc(waLink(r.KontakCV, pesanTagih(r))) + '" onclick="event.stopPropagation()">WA</a>' : ''; }, '']],
         { id: 'prioPk', hp: 1, klik: detailPaket, csv: 'paket-belum-jakon', kosong: 'Semua paket berpemenang sudah tercatat Jakon.' });
     }
@@ -3948,7 +4004,6 @@ function pasangRingkasJakon(el) {
   if (!S.f.prio2) S.f.prio2 = PRIORITAS[0][0];
   filterChips($('#fPrio2', el), 'prio2', pilihan, render);
   render();
-  tabelKontakBanyak($('#tKontak', el));
 }
 
 /** Kontak (HP) yang mengurus ≥ 2 CV: dari kontak proyek di laporan dan kontak CV. */
@@ -3964,7 +4019,8 @@ function kontakBanyakCv() {
   };
   pjAktif().forEach(function (p) { tambah(p.KontakHP, p.KontakNama, p.CV_ID, 'proyek'); });
   S.d.cv.forEach(function (c) { tambah(c.Kontak, '', c.ID); KONTAK_CV.forEach(function (k) { tambah(c[k[2]], c[k[1]], c.ID); }); });
-  return Object.keys(g).map(function (k) { var x = g[k]; x.daftar = Object.keys(x.cv).map(function (id) { return cvById[id]; }); x.namaTeks = Object.keys(x.nama).join(' / ') || '-'; return x; })
+  var rank = { 'Menunggak': 0, 'Nonaktif': 1, 'Belum terdaftar / perlu cek': 2, 'Terdaftar aktif': 3 }; // 2.4.4: yang perlu ditindaklanjuti di depan
+  return Object.keys(g).map(function (k) { var x = g[k]; x.daftar = Object.keys(x.cv).map(function (id) { return cvById[id]; }).sort(function (a, b) { return ((rank[a.Status] + 1) || 9) - ((rank[b.Status] + 1) || 9) || String(a.Nama).localeCompare(b.Nama); }); x.namaTeks = Object.keys(x.nama).join(' / ') || '-'; return x; })
     .filter(function (x) { return x.daftar.length >= 2; })
     .sort(function (a, b) { return b.daftar.length - a.daftar.length; });
 }
@@ -3973,13 +4029,33 @@ function pesanKontakBanyak(x) {
   return 'Halo Bapak/Ibu ' + (x.namaTeks !== '-' ? x.namaTeks.split(' / ')[0] : '') + ' 👋, kami dari BPJS Ketenagakerjaan KC Pamekasan.\n\nTerkait kepesertaan perusahaan jasa konstruksi yang Bapak/Ibu urus:\n' + daftar +
     '\n\nBila ada perusahaan yang sedang tidak memiliki proyek, mohon dilaporkan atau diajukan penonaktifan agar tagihan tidak terus berjalan. Kami siap membantu 🙏';
 }
+/** 2.4.4: ringkas per kontak (nama, jumlah CV, status); semua perusahaan tampil saat baris diketuk. */
+function hitungStatusTeks(daftar) {
+  var h = hitung(daftar, function (c) { return c.Status || 'Belum terdaftar / perlu cek'; }), urut = ['Menunggak', 'Nonaktif', 'Belum terdaftar / perlu cek', 'Terdaftar aktif'];
+  return Object.keys(h).sort(function (a, b) { return (urut.indexOf(a) + 1 || 9) - (urut.indexOf(b) + 1 || 9); })
+    .map(function (k) { return '<span class="chip ' + chipCls(k) + '">' + esc(k === 'Belum terdaftar / perlu cek' ? 'Belum terdaftar' : k) + ' ' + h[k] + '</span>'; }).join(' ');
+}
 function tabelKontakBanyak(w) {
   if (!w) return;
   tabel(w, kontakBanyakCv(), [['namaTeks', 'Nama kontak', 'judul-hp'], ['hp', 'HP'], [function (r) { return r.daftar.length; }, 'CV', 'num'],
-    [function (r) { return r.daftar.map(function (c) { return esc(c.Nama) + ' ' + chip(c.Status); }).join('<br>'); }, 'Perusahaan'],
-    [function (r) { return r.daftar.filter(function (c) { return c.Status === 'Menunggak'; }).length; }, 'Menunggak', 'num'],
-    [function (r) { return '<a class="btn wa kecil" target="_blank" href="' + esc(waLink(r.hp, pesanKontakBanyak(r))) + '">WA</a>'; }, '']],
-    { id: 'kontakBanyak', hp: 1, csv: 'kontak-pemegang-banyak-cv', csvKolom: [['namaTeks', 'Nama'], ['hp', 'HP'], [function (r) { return r.daftar.map(function (c) { return c.Nama; }).join(', '); }, 'Perusahaan']], kosong: 'Belum ada kontak yang memegang lebih dari satu CV.' });
+    [function (r) { var n = r.daftar.length, dua = r.daftar.slice(0, 2).map(function (c) { return esc(c.Nama); }).join(', '); return '<span class="ringkas-cv">' + dua + (n > 2 ? ' <span class="muted">+' + (n - 2) + ' lainnya</span>' : '') + '</span>'; }, 'Perusahaan', 'teks-panjang'],
+    [function (r) { return '<span class="chip-baris">' + hitungStatusTeks(r.daftar) + '</span>'; }, 'Status CV'],
+    [function (r) { return '<a class="btn wa kecil" target="_blank" href="' + esc(waLink(r.hp, pesanKontakBanyak(r))) + '" onclick="event.stopPropagation()">WA</a>'; }, '']],
+    { id: 'kontakBanyak', hp: 1, klik: detailKontakBanyak, csv: 'kontak-pemegang-banyak-cv', csvKolom: [['namaTeks', 'Nama'], ['hp', 'HP'], [function (r) { return r.daftar.map(function (c) { return c.Nama; }).join(', '); }, 'Perusahaan']], kosong: 'Belum ada kontak yang memegang lebih dari satu CV.' });
+}
+/** Rincian satu kontak: semua perusahaan yang diurus (ketuk perusahaan → rincian CV). */
+function detailKontakBanyak(x) {
+  var baris = x.daftar.slice().sort(function (a, b) { return tunggakanCv(b).totalTagihan - tunggakanCv(a).totalTagihan || String(a.Nama).localeCompare(b.Nama); }).map(function (c) {
+    var t = tunggakanCv(c).totalTagihan;
+    return '<tr class="klik" data-cv="' + esc(c.ID) + '"><td class="judul-hp">' + esc(c.Nama) + '</td><td>' + esc(c.NPP || '-') + '</td><td>' + chip(c.Status) + '</td><td class="num">' + (t ? rp(t) : '-') + '</td><td>' + chipProyek(statusProyekCv(c)) + '</td></tr>';
+  }).join('');
+  modal('<div class="baris"><h3 style="margin:0">' + esc(x.namaTeks) + '</h3><span class="sp"></span><a class="btn wa kecil" target="_blank" href="' + esc(waLink(x.hp, pesanKontakBanyak(x))) + '">WA ' + esc(x.hp) + '</a></div>' +
+    '<p class="muted" style="margin:6px 0 10px">Mengurus ' + x.daftar.length + ' perusahaan · ' + hitungStatusTeks(x.daftar) + '</p>' +
+    '<div class="tbl-wrap"><div class="tbl-gulir"><table><thead><tr><th>Perusahaan</th><th>NPP</th><th>Status</th><th class="num">Total tagihan</th><th>Proyek Jakon</th></tr></thead><tbody>' + baris + '</tbody></table></div></div>' +
+    '<div class="aksi"><button class="btn" data-tutup>Tutup</button></div>', function (bg) {
+    bg.querySelector('.modal').classList.add('lebar');
+    $$('tr[data-cv]', bg).forEach(function (tr) { tr.onclick = function () { var c = S.d.cv.filter(function (v) { return v.ID === tr.dataset.cv; })[0]; bg.remove(); if (c) detailCv(c); }; });
+  });
 }
 
 /* ---------- menu Proyek: Paket SIRUP | Proyek Jakon ---------- */
@@ -4203,18 +4279,29 @@ function tabPanas(el) {
     daftarPanas(nama, s, basis, pengamat, ukur);
   };
   $$('.panas-urut.klik', el).forEach(function (r) { r.onclick = function () { buka(r.dataset.kec, !!r.dataset.luar); }; });
-  $$('path.panas-wil', el).forEach(function (pth) { pth.onclick = function () { buka(pth.dataset.kec, false); }; });
+  $$('path.panas-wil', el).forEach(function (pth) {
+    pth.onclick = function () { buka(pth.dataset.kec, false); };
+    pth.onmouseenter = function () { var g = pth.parentNode; if (g.lastChild !== pth) g.appendChild(pth); }; // 2.4.4: wilayah disorot dibawa ke depan agar cahayanya utuh
+  });
   tabelPanas($('#pnTabel', el), w, ukur, ramp, basis);
+}
+/** 2.4.4 / 2.16.1: warna cahaya (glow) saat kecamatan disorot = warna wilayah itu; warna pucat sedikit digelapkan agar cahayanya terlihat. */
+function warnaGlow(warna) {
+  var m = /^#?([0-9a-f]{6})$/i.exec(String(warna || '').trim()), r, g, b;
+  if (m) { var n = parseInt(m[1], 16); r = n >> 16 & 255; g = n >> 8 & 255; b = n & 255; }
+  else { var x = /rgba?\((\d+)\D+(\d+)\D+(\d+)/.exec(String(warna || '')); if (!x) return 'rgba(120,113,108,.55)'; r = +x[1]; g = +x[2]; b = +x[3]; }
+  var L = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255, f = L > 0.85 ? 0.62 : L > 0.7 ? 0.8 : 1;
+  return 'rgb(' + Math.round(r * f) + ',' + Math.round(g * f) + ',' + Math.round(b * f) + ')';
 }
 function svgPanas(w, ukur, maks, ramp) {
   var g = '', t = '';
   KitPeta.kec.forEach(function (k) {
     var s = w.kec[k.nama], v = s ? s[ukur] : 0, c = warnaPanas(v, maks, ramp);
-    g += '<path d="' + k.d + '" fill="' + (c ? c.bg : '#EEF0F4') + '" class="panas-wil" data-kec="' + esc(k.nama) + '"><title>' + esc(k.nama + ': ' + (v ? teksUkur(ukur, v) : 'belum ada')) + '</title></path>';
+    g += '<path d="' + k.d + '" fill="' + (c ? c.bg : '#EEF0F4') + '" style="--g:' + warnaGlow(c ? c.bg : '#EEF0F4') + '" class="panas-wil" data-kec="' + esc(k.nama) + '"><title>' + esc(k.nama + ': ' + (v ? teksUkur(ukur, v) : 'belum ada')) + '</title></path>';
     var fg = c ? c.fg : '#8A93A3', halo = fg === '#fff' ? 'rgba(0,0,0,.35)' : 'rgba(255,255,255,.75)';
     t += '<text x="' + k.lx + '" y="' + (k.ly - 1) + '" class="panas-lbl" fill="' + fg + '" stroke="' + halo + '">' + esc(k.nama) + '</text>' + (v ? '<text x="' + k.lx + '" y="' + (k.ly + 10) + '" class="panas-lbl angka" fill="' + fg + '" stroke="' + halo + '">' + teksUkur(ukur, v) + '</text>' : '');
   });
-  return '<svg viewBox="-3 -3 ' + (KitPeta.lebar + 6) + ' ' + (KitPeta.tinggi + 6) + '" class="panas-peta" role="img" aria-label="Heat maps 13 kecamatan Kabupaten Pamekasan">' + g + t + '</svg>';
+  return '<svg viewBox="-3 -3 ' + (KitPeta.lebar + 6) + ' ' + (KitPeta.tinggi + 6) + '" class="panas-peta" role="img" aria-label="Heat maps 13 kecamatan Kabupaten Pamekasan"><g class="panas-wil-g">' + g + '</g>' + t + '</svg>';
 }
 function legendaPanasSigap(ramp, maks, ukur, jenis) {
   return '<div class="panas-skala"><span>sedikit</span>' + ramp.map(function (c) { return '<i style="background:' + c + '"></i>'; }).join('') + '<span>' + (maks ? 'banyak (' + teksUkur(ukur, maks) + ')' : 'banyak') + '</span></div>' +

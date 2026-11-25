@@ -1,4 +1,4 @@
-# SIGAP Jakon 2.4.3
+# SIGAP Jakon 2.4.4
 
 Gerbang Kepatuhan Jasa Konstruksi — aplikasi kreativitas staf KC Pamekasan (bukan aplikasi resmi BPJS Ketenagakerjaan).
 Bagian dari LENSA Suite: masuk dengan kode undangan dari LENSA PK › Perangkat & pengguna. Repo ini hanya berisi kode, tanpa data.
