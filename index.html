@@ -1926,7 +1926,7 @@ var KitPeta = {
  *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
  *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
  * ---------------------------------------------------------------------- */
-var VERSI_APP = '2.4.0'; // 2.4.0: tampilan umum #penonaktifan (tanpa kode akses), penonaktifan disederhanakan, rekonsiliasi paket SIRUP ⇄ Proyek Jakon · 2.3.5: rincian tagihan CV s.d. bulan berjalan (sama dengan LENSA) · 2.3.4: kolom Gudang laporan Proyek Jakon — Menunggu (diambil LENSA ±1 jam) / Tersimpan G… · 2.3.3: istilah Peta → Maps, Peta panas → Heat maps · 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
+var VERSI_APP = '2.4.1'; // 2.4.1: galat "Script error." tanpa rincian (dari luar aplikasi) tidak dicatat; waktu galat memakai jam setempat · 2.4.0: tampilan umum #penonaktifan (tanpa kode akses), penonaktifan disederhanakan, rekonsiliasi paket SIRUP ⇄ Proyek Jakon · 2.3.5: rincian tagihan CV s.d. bulan berjalan (sama dengan LENSA) · 2.3.4: kolom Gudang laporan Proyek Jakon — Menunggu (diambil LENSA ±1 jam) / Tersimpan G… · 2.3.3: istilah Peta → Maps, Peta panas → Heat maps · 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
 var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
 var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
 
@@ -2026,12 +2026,17 @@ function catatGalat(tempat, pesan) {
   try {
     var p = String(pesan || '').replace(/\d{12,}/g, '[angka]').slice(0, 400); // NIK / deret angka panjang tidak pernah dikirim
     if (!p || DB.galatAntre.some(function (g) { return g.pesan === p; })) return;
-    DB.galatAntre.push({ waktu: new Date().toISOString().replace('T', ' ').slice(0, 19), tempat: String(tempat || '').slice(0, 100), pesan: p });
+    var d = new Date(), w = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19); // 2.4.1: jam setempat (dulu UTC, selisih 7 jam)
+    DB.galatAntre.push({ waktu: w, tempat: String(tempat || '').slice(0, 100), pesan: p });
     if (DB.galatAntre.length > 20) DB.galatAntre.splice(0, DB.galatAntre.length - 20);
     simpanDb();
   } catch (e) { /* diam */ }
 }
-window.addEventListener('error', function (e) { catatGalat('halaman', (e && e.message) + (e && e.filename ? ' @ ' + String(e.filename).split('/').pop() + ':' + e.lineno : '')); });
+window.addEventListener('error', function (e) {
+  // 2.4.1: "Script error." tanpa nama berkas berasal dari luar aplikasi (ekstensi/terjemahan/peramban) dan tidak berisi rincian apa pun → tidak dicatat
+  if (e && !e.filename && /^Script error\.?$/i.test(String(e.message || '').trim())) return;
+  catatGalat('halaman', (e && e.message) + (e && e.filename ? ' @ ' + String(e.filename).split('/').pop() + ':' + e.lineno : ''));
+});
 window.addEventListener('unhandledrejection', function (e) { var r = e && e.reason; catatGalat('janji', r && r.message || r); });
 
 /* === 30-gerbang.js === */
