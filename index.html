@@ -61,7 +61,7 @@ label.f small{font-weight:400;color:var(--abu)}
 .tbl-wrap{overflow:auto;background:#fff;border:1px solid var(--garis);border-radius:var(--r)}
 table{border-collapse:collapse;width:100%;font-size:14px}
 th{background:#f7f9f8;text-align:left;font-size:12.5px;color:var(--abu);font-weight:700;position:sticky;top:0}
-th,td{padding:8px 10px;border-bottom:1px solid var(--garis);vertical-align:top}
+th,td{padding:8px 9px;border-bottom:1px solid var(--garis);vertical-align:top}
 tr.klik{cursor:pointer}tr.klik:hover td{background:#FFF7ED}
 td.num{text-align:right;white-space:nowrap}
 .kosong{padding:28px;text-align:center;color:var(--abu)}
@@ -168,6 +168,26 @@ details.rincian-tg table{font-size:12.5px}details.rincian-tg th,details.rincian-
 .umum-jebak{position:absolute;left:-5000px;width:1px;height:1px;overflow:hidden}
 .umum-tombol{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px} /* 2.4.2: jarak isian Pemohon ↔ tombol, dan antartombol */
 .umum-tombol>.btn{margin:0}.baris.umum-tombol{margin-top:6px}
+/* 2.4.3: tabel lebih rapi — area lebih lebar, kepala kolom tidak terlipat, angka rata kanan sejajar kepalanya, per halaman */
+main,.disc{max-width:1600px}
+.tbl-alat{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.tbl-gulir{overflow-x:auto}
+th{white-space:nowrap;vertical-align:bottom;padding-top:10px;padding-bottom:10px}
+td{vertical-align:middle}
+td.num{font-variant-numeric:tabular-nums}
+td.judul-hp{min-width:220px}td.teks-panjang{min-width:200px}
+tbody tr:last-child td{border-bottom:0}
+.tbl-kaki{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--garis);background:#FAFAF9;font-size:13px}
+.tbl-kaki select{width:auto;padding:4px 8px;margin:0 4px;font-size:13px;border-radius:8px}
+.hal{display:flex;gap:4px;align-items:center}
+.hal button{min-width:34px;height:32px;padding:0 8px;border:1px solid var(--garis);background:#fff;border-radius:8px;font-size:13px;font-weight:600;color:var(--teks);cursor:pointer}
+.hal button:hover:not(:disabled){border-color:var(--hijau2)}
+.hal button.on{background:var(--hijau);border-color:var(--hijau);color:#fff}
+.hal button:disabled{opacity:.4;cursor:default}
+.hal-jeda{padding:0 4px;color:var(--abu)}
+@media(max-width:720px){.tbl-kaki .sp{display:none}.hal{width:100%;justify-content:center}.hp-kartu td{vertical-align:top}}
+.grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))} /* 2.4.3: ubin angka lebih lega & sama lebar di layar lebar */
+@media(max-width:720px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -1928,7 +1948,7 @@ var KitPeta = {
  *  Yang disimpan: sambungan perangkat (alamat, idp, token), data awal terakhir (NIK sudah disamarkan server),
  *  galat yang belum terkirim. NIK utuh dan foto KTP TIDAK PERNAH disimpan di perangkat.
  * ---------------------------------------------------------------------- */
-var VERSI_APP = '2.4.2'; // 2.4.2: penonaktifan umum — petunjuk NPP, alamat wajib, petunjuk nama pimpinan, jarak tombol · 2.4.1: galat "Script error." tanpa rincian (dari luar aplikasi) tidak dicatat; waktu galat memakai jam setempat · 2.4.0: tampilan umum #penonaktifan (tanpa kode akses), penonaktifan disederhanakan, rekonsiliasi paket SIRUP ⇄ Proyek Jakon · 2.3.5: rincian tagihan CV s.d. bulan berjalan (sama dengan LENSA) · 2.3.4: kolom Gudang laporan Proyek Jakon — Menunggu (diambil LENSA ±1 jam) / Tersimpan G… · 2.3.3: istilah Peta → Maps, Peta panas → Heat maps · 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
+var VERSI_APP = '2.4.3'; // 2.4.3: tabel per halaman (10/25/50/100), kolom lebih lebar & rapi · 2.4.2: penonaktifan umum — petunjuk NPP, alamat wajib, petunjuk nama pimpinan, jarak tombol · 2.4.1: galat "Script error." tanpa rincian (dari luar aplikasi) tidak dicatat; waktu galat memakai jam setempat · 2.4.0: tampilan umum #penonaktifan (tanpa kode akses), penonaktifan disederhanakan, rekonsiliasi paket SIRUP ⇄ Proyek Jakon · 2.3.5: rincian tagihan CV s.d. bulan berjalan (sama dengan LENSA) · 2.3.4: kolom Gudang laporan Proyek Jakon — Menunggu (diambil LENSA ±1 jam) / Tersimpan G… · 2.3.3: istilah Peta → Maps, Peta panas → Heat maps · 2.3.2: denda periode lalu + sisa IBR → total tagihan CV · 2.3.1: total tunggakan (iuran + denda) di CV/PT · 2.3.0 (Tahap 7): Proyek Jakon Aktif + peta panas · 2.2.0 (LENSA Suite 5D): menu nyala/mati per peran dari Pusat Kendali LENSA
 var NAMA_DB = 'sigap_jakon', KUNCI_DB = 'state';
 var HARI_KUNCI = 7; // seperti aplikasi LENSA Suite lain: 7 hari tidak tersambung → data tersimpan tidak ditampilkan
 
@@ -2307,25 +2327,54 @@ function bacaBerkas(file) {
   });
 }
 
-/** Tabel generik dengan pencarian. kolom: [[key|fn, judul, cls]] */
+/* 2.4.3: tabel per halaman (10 / 25 / 50 / 100 baris; pilihan diingat di perangkat ini, berlaku untuk semua tabel). */
+var PILIHAN_BARIS = [10, 25, 50, 100];
+function barisPerHalaman() { try { var n = +localStorage.getItem('sigap-baris'); return PILIHAN_BARIS.indexOf(n) >= 0 ? n : 10; } catch (e) { return 10; } }
+function nomorHalaman(hal, n) {
+  var out = [];
+  for (var i = 1; i <= n; i++) if (i === 1 || i === n || Math.abs(i - hal) <= 1) out.push(i); else if (out[out.length - 1] !== '…') out.push('…');
+  return out;
+}
+/** Tabel generik dengan pencarian & halaman. kolom: [[key|fn, judul, cls]]. opt.semua: tanpa halaman (mis. pengaturan). */
 function tabel(el, rows, kolom, opt) {
   opt = opt || {};
   var q = (S.f[opt.id + '_q'] || '').toLowerCase();
   var data = rows.filter(function (r) { return !q || JSON.stringify(r).toLowerCase().indexOf(q) >= 0; });
-  var html = '<div class="baris" style="margin-bottom:8px"><input type="text" class="cari" placeholder="Cari…" value="' + esc(S.f[opt.id + '_q'] || '') + '" data-q><span class="muted">' + data.length + ' baris</span><span class="sp"></span>' + (opt.csv ? '<button class="btn kecil" data-csv>Unduh CSV</button>' : '') + (opt.tombol || '') + '</div>';
+  // halaman kembali ke 1 bila isi tabel berganti (filter / pencarian); tetap bila hanya dimuat ulang dengan data yang sama
+  var sig = rows.length + '|' + q + '|' + (rows.length ? JSON.stringify(rows[0]).slice(0, 80) : '');
+  if (S.f[opt.id + '_sig'] !== sig) { S.f[opt.id + '_sig'] = sig; S.f[opt.id + '_hal'] = 1; }
+  var per = opt.semua ? Math.max(1, data.length) : barisPerHalaman(), nHal = Math.max(1, Math.ceil(data.length / per));
+  var hal = Math.min(Math.max(1, S.f[opt.id + '_hal'] || 1), nHal); S.f[opt.id + '_hal'] = hal;
+  var awal = (hal - 1) * per, isi = data.slice(awal, awal + per);
+  var html = '<div class="tbl-alat"><input type="text" class="cari" placeholder="Cari…" value="' + esc(S.f[opt.id + '_q'] || '') + '" data-q><span class="muted">' + data.length + ' baris</span><span class="sp"></span>' + (opt.csv ? '<button class="btn kecil" data-csv>Unduh CSV</button>' : '') + (opt.tombol || '') + '</div>';
   if (!data.length) html += '<div class="tbl-wrap"><div class="kosong">' + esc(opt.kosong || 'Belum ada data') + '</div></div>';
   else {
-    var batas = opt.batas || 300;
+    var kaki = '';
+    if (!opt.semua && data.length > PILIHAN_BARIS[0]) {
+      kaki = '<div class="tbl-kaki"><label class="muted">Tampilkan <select data-per aria-label="Baris per halaman">' + PILIHAN_BARIS.map(function (n) { return '<option' + (n === per ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select> baris</label>' +
+        '<span class="muted">' + (awal + 1) + '–' + (awal + isi.length) + ' dari ' + data.length + '</span><span class="sp"></span>' +
+        (nHal > 1 ? '<div class="hal" role="navigation" aria-label="Halaman"><button type="button" data-hal="' + (hal - 1) + '"' + (hal <= 1 ? ' disabled' : '') + ' aria-label="Sebelumnya">‹</button>' +
+          nomorHalaman(hal, nHal).map(function (n) { return n === '…' ? '<span class="hal-jeda">…</span>' : '<button type="button" data-hal="' + n + '"' + (n === hal ? ' class="on" aria-current="page"' : '') + '>' + n + '</button>'; }).join('') +
+          '<button type="button" data-hal="' + (hal + 1) + '"' + (hal >= nHal ? ' disabled' : '') + ' aria-label="Berikutnya">›</button></div>' : '') + '</div>';
+    }
     // 2.0.1: opt.hp → di layar HP tiap baris tampil sebagai kartu (judul kolom di kiri), tidak perlu geser ke samping
-    html += '<div class="tbl-wrap' + (opt.hp ? ' hp-kartu' : '') + '"><table><thead><tr>' + kolom.map(function (k) { return '<th>' + esc(k[1]) + '</th>'; }).join('') + '</tr></thead><tbody>' +
-      data.slice(0, batas).map(function (r, i) { return '<tr class="' + (opt.klik ? 'klik' : '') + '" data-i="' + i + '">' + kolom.map(function (k) { var v = typeof k[0] === 'function' ? k[0](r) : esc(r[k[0]]); return '<td class="' + (k[2] || '') + '" data-l="' + esc(k[1]) + '">' + v + '</td>'; }).join('') + '</tr>'; }).join('') +
-      '</tbody></table>' + (data.length > batas ? '<div class="kosong">Menampilkan ' + batas + ' dari ' + data.length + '. Persempit pencarian.</div>' : '') + '</div>';
+    html += '<div class="tbl-wrap' + (opt.hp ? ' hp-kartu' : '') + '"><div class="tbl-gulir"><table><thead><tr>' + kolom.map(function (k) { return '<th class="' + (k[2] || '') + '">' + esc(k[1]) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      isi.map(function (r, i) { return '<tr class="' + (opt.klik ? 'klik' : '') + '" data-i="' + (awal + i) + '">' + kolom.map(function (k) { var v = typeof k[0] === 'function' ? k[0](r) : esc(r[k[0]]); return '<td class="' + (k[2] || '') + '" data-l="' + esc(k[1]) + '">' + v + '</td>'; }).join('') + '</tr>'; }).join('') +
+      '</tbody></table></div>' + kaki + '</div>';
   }
   el.innerHTML = html;
   var inp = $('[data-q]', el);
   inp.oninput = function () { S.f[opt.id + '_q'] = inp.value; clearTimeout(inp._t); inp._t = setTimeout(function () { tabel(el, rows, kolom, opt); var n = $('[data-q]', el); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 250); };
   if (opt.klik) $$('tr.klik', el).forEach(function (tr) { tr.onclick = function () { opt.klik(data[+tr.dataset.i]); }; });
   if (opt.csv) $('[data-csv]', el).onclick = function () { unduhCSV(opt.csv, opt.csvKolom || kolom.filter(function (k) { return typeof k[0] === 'string'; }), data); };
+  var pilih = $('[data-per]', el);
+  if (pilih) pilih.onchange = function () { try { localStorage.setItem('sigap-baris', pilih.value); } catch (e) { /* diam */ } S.f[opt.id + '_hal'] = 1; tabel(el, rows, kolom, opt); };
+  $$('[data-hal]', el).forEach(function (b) {
+    b.onclick = function () {
+      S.f[opt.id + '_hal'] = +b.dataset.hal; tabel(el, rows, kolom, opt);
+      var r = el.getBoundingClientRect(); if (r.top < 100) window.scrollBy(0, r.top - 110); // kepala tabel tetap terlihat
+    };
+  });
   if (opt.onRender) opt.onRender(el);
 }
 
@@ -2446,7 +2495,7 @@ function ownerRingkasan(el) {
   var urut = { 'Menunggak': 0, 'Nonaktif': 1, 'Belum terdaftar / perlu cek': 2 };
   masalah.sort(function (a, b) { return (urut[a.StatusCV] || 9) - (urut[b.StatusCV] || 9) || (b.NilaiKontrak || b.Pagu || 0) - (a.NilaiKontrak || a.Pagu || 0); });
   tabel($('#prio'), masalah, [
-    ['Pemenang', 'Pemenang'], [function (r) { return chip(r.StatusCV); }, 'Status CV'], ['NamaPaket', 'Paket'], ['Satker', 'Satker'],
+    ['Pemenang', 'Pemenang', 'judul-hp'], [function (r) { return chip(r.StatusCV); }, 'Status CV'], ['NamaPaket', 'Paket', 'teks-panjang'], ['Satker', 'Satker', 'teks-panjang'],
     [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], [function (r) { return chip(r.StatusPemkab); }, 'Status proyek'],
     [function (r) { return r.KontakCV ? '<a class="btn wa kecil" target="_blank" href="' + esc(waLink(r.KontakCV, pesanTagih(r))) + '" onclick="event.stopPropagation()">WA</a>' : ''; }, '']
   ], { id: 'prio', klik: detailPaket, csv: 'prioritas-tindak-lanjut', kosong: 'Tidak ada pemenang bermasalah. Mantap!' });
@@ -2488,7 +2537,7 @@ function ownerCv(el) {
     rows.sort(urut === 'tunggakan' ? function (a, b) { return b._totalTg - a._totalTg || String(a.Nama).localeCompare(b.Nama); } : function (a, b) { return b._paket - a._paket || String(a.Nama).localeCompare(b.Nama); });
     $('#cvTotal').innerHTML = kartuTotalTunggakan(rows, urut);
     $('#cvUrut').onchange = function () { S.f.cvUrut = this.value; render(); };
-    tabel($('#tCv'), rows, [['Nama', 'Nama'], ['NPP', 'NPP'], [function (r) { return chip(r.Status) + (r.StatusManual ? ' <span class="muted">(manual)</span>' : ''); }, 'Status'],
+    tabel($('#tCv'), rows, [['Nama', 'Nama', 'judul-hp'], ['NPP', 'NPP'], [function (r) { return chip(r.Status) + (r.StatusManual ? ' <span class="muted">(manual)</span>' : ''); }, 'Status'],
       [function (r) { return r.BulanTunggak === '' || r.BulanTunggak == null ? '-' : esc(r.BulanTunggak); }, 'Bln tunggak', 'num'],
       [function (r) { return rp(r._iuranTg); }, 'Iuran', 'num'], [function (r) { return rp(r._dendaTg); }, 'Denda', 'num'], [function (r) { return r._ibrTg ? '− ' + rp(r._ibrTg) : '-'; }, 'IBR', 'num'], [function (r) { return r._totalTg ? '<b>' + rp(r._totalTg) + '</b>' : '-'; }, 'Total tagihan', 'num'],
       [function (r) { return r._paket || '-'; }, 'Paket', 'num'],
@@ -2549,7 +2598,7 @@ function ownerProyek(el) {
       if (f2 !== 'Semua status' && (p.StatusPemkab || 'Belum dimulai') !== f2) return false;
       return true;
     });
-    tabel($('#tPk'), rows, [[function (r) { return esc(r.KodeRUP || '-'); }, 'Kode RUP'], ['NamaPaket', 'Paket'], ['Satker', 'Satker'], [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], ['Tahap', 'Tahap'],
+    tabel($('#tPk'), rows, [[function (r) { return esc(r.KodeRUP || '-'); }, 'Kode RUP'], ['NamaPaket', 'Paket', 'judul-hp'], ['Satker', 'Satker'], [function (r) { return jt(r.NilaiKontrak || r.Pagu); }, 'Nilai', 'num'], ['Tahap', 'Tahap'],
       [function (r) { return esc(r.Pemenang || '-') + (r.StatusCocok && r.StatusCocok !== 'Cocok' ? '<br><span class="muted">' + esc(r.StatusCocok) + '</span>' : ''); }, 'Pemenang'],
       [function (r) { return chip(r.StatusCV); }, 'Status CV'], [function (r) { return chip(r.StatusPemkab || 'Belum dimulai'); }, 'Status proyek']],
       { id: 'pk', klik: detailPaket, csv: 'proyek-konstruksi', csvKolom: [['KodeRUP', 'Kode RUP'], ['KodePaket', 'Kode paket'], ['Sumber', 'Sumber'], ['Tahun', 'Tahun'], ['Satker', 'Satker'], ['NamaPaket', 'Nama paket'], ['JenisPengadaan', 'Jenis'], ['Metode', 'Metode'], ['Pagu', 'Pagu'], ['NilaiKontrak', 'Nilai kontrak'], ['Pemenang', 'Pemenang'], ['StatusCV', 'Status CV'], ['StatusPemkab', 'Status proyek'], ['PerkiraanRealisasi', 'Perkiraan realisasi'], ['KetPemkab', 'Keterangan']] });
@@ -2602,7 +2651,7 @@ function ownerPengajuan(el) {
   var render = function () {
     var f = S.f.pgSt || 'Diajukan';
     var rows = d.pengajuan.filter(function (p) { return f === 'Semua' || p.Status === f; });
-    tabel($('#lPg'), rows, [['ID', 'Nomor'], ['Jenis', 'Jenis'], ['NamaPK', 'Perusahaan'], [function (r) { return esc(namaPengaju(r)); }, 'Oleh'], [function (r) { return chip(r.Status); }, 'Status'], ['Diperbarui', 'Diperbarui']], { id: 'pg', klik: detailPengajuan, kosong: 'Tidak ada pengajuan dengan status ini' });
+    tabel($('#lPg'), rows, [['ID', 'Nomor'], ['Jenis', 'Jenis'], ['NamaPK', 'Perusahaan', 'judul-hp'], [function (r) { return esc(namaPengaju(r)); }, 'Oleh'], [function (r) { return chip(r.Status); }, 'Status'], ['Diperbarui', 'Diperbarui']], { id: 'pg', klik: detailPengajuan, kosong: 'Tidak ada pengajuan dengan status ini' });
   };
   filterChips($('#fPg'), 'pgSt', [['Diajukan', st['Diajukan'] || 0], ['Perlu perbaikan', st['Perlu perbaikan'] || 0], ['Diverifikasi', st['Diverifikasi'] || 0], ['Selesai', st['Selesai'] || 0], ['Ditolak', st['Ditolak'] || 0], ['Draf', st['Draf'] || 0], ['Semua', d.pengajuan.length]], render);
   render();
@@ -2624,7 +2673,7 @@ function ownerSetelan(el) {
   var d = S.d;
   el.innerHTML = '<div class="baris"><h2>Pengaturan</h2><span class="sp"></span><button class="btn" id="bLog">Lihat log aktivitas</button></div><div class="info kuning">Nilai bertanda "Diisi otomatis" sebaiknya tidak diubah. Kunci API tersimpan di Sheet Anda dan tidak ditampilkan.</div><div id="tCfg"></div>';
   tabel($('#tCfg'), d.config, [['Kunci', 'Kunci'], [function (r) { return '<input type="text" value="' + esc(r.Nilai) + '" data-k="' + esc(r.Kunci) + '" ' + (/^(FOLDER_|TPL_)/.test(r.Kunci) ? 'disabled' : '') + '>'; }, 'Nilai'], ['Keterangan', 'Keterangan']], {
-    id: 'cfg', batas: 100, onRender: function (w) {
+    id: 'cfg', semua: 1, onRender: function (w) {
       $$('input[data-k]', w).forEach(function (i) {
         i.onchange = function () { if (i.value === '••••••') return; call('simpanConfig', { kunci: i.dataset.k, nilai: i.value }).then(function () { toast(i.dataset.k + ' tersimpan'); }).catch(function (e) { toast(e.message, true); }); };
       });
@@ -2754,7 +2803,7 @@ function pemkabCv(el) {
   el.innerHTML = '<h2>Status kepesertaan CV/PT pemenang</h2><p class="muted">Hanya status yang ditampilkan. Untuk rincian, hubungi BPJS Ketenagakerjaan KC Pamekasan.</p><div class="filters" id="fPc"></div><div id="tPc"></div>';
   var render = function () {
     var f = S.f.pcSt || 'Semua';
-    tabel($('#tPc'), d.cv.filter(function (c) { return f === 'Semua' || c.Status === f; }), [['Nama', 'CV/PT'], ['NPP', 'NPP'], [function (r) { return chip(r.Status); }, 'Status'], ['JumlahPaket', 'Paket', 'num']],
+    tabel($('#tPc'), d.cv.filter(function (c) { return f === 'Semua' || c.Status === f; }), [['Nama', 'CV/PT', 'judul-hp'], ['NPP', 'NPP'], [function (r) { return chip(r.Status); }, 'Status'], ['JumlahPaket', 'Paket', 'num']],
       { id: 'pc', csv: 'status-cv', csvKolom: [['Nama', 'CV/PT'], ['NPP', 'NPP'], ['Status', 'Status'], ['JumlahPaket', 'Jumlah paket']] });
   };
   filterChips($('#fPc'), 'pcSt', [['Semua', d.cv.length]].concat(STATUS_CV.map(function (s) { return [s, st[s] || 0]; })), render);
